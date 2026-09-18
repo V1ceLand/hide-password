@@ -1,0 +1,5 @@
+{
+	"passwordmask.eye.show": "Show password",
+	"passwordmask.eye.hide": "Hide password",
+	"passwordmask.eye.tooltip": "Show or hide the password (AuthMe /login, /register and login dialogs)"
+}
