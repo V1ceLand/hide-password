@@ -3,8 +3,10 @@ package com.kozyr.passwordmask.mixin;
 import com.kozyr.passwordmask.PasswordMask;
 import com.kozyr.passwordmask.PasswordMaskState;
 import com.kozyr.passwordmask.client.EyeButton;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratedElementType;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.ChatScreen;
@@ -58,10 +60,31 @@ public abstract class ChatScreenMixin extends Screen {
 
 	@Inject(method = "init", at = @At("TAIL"))
 	private void passwordmask$addEyeButton(CallbackInfo ci) {
-		this.passwordmask$eye = this.addRenderableWidget(EyeButton.at(
-				this.width - EyeButton.SIZE - MARGIN,
-				this.height - INPUT_AREA_HEIGHT - EyeButton.SIZE - MARGIN));
+		this.passwordmask$eye = this.addRenderableWidget(EyeButton.placed(this::passwordmask$placeEye));
 		this.passwordmask$updateEyeVisibility();
+	}
+
+	/**
+	 * Правый нижний угол над строкой ввода. Если угол уже занят кнопками других модов
+	 * (например, No Chat Reports), сдвигаемся левее них.
+	 */
+	@Unique
+	private void passwordmask$placeEye(EyeButton eye) {
+		int x = this.width - EyeButton.SIZE - MARGIN;
+		int y = this.height - INPUT_AREA_HEIGHT - EyeButton.SIZE - MARGIN;
+		boolean moved = true;
+		while (moved && x > 0) {
+			moved = false;
+			for (GuiEventListener child : this.children()) {
+				if (child != eye && child != this.input && child instanceof AbstractWidget other && other.visible
+						&& other.getX() < x + EyeButton.SIZE && other.getRight() > x
+						&& other.getY() < y + EyeButton.SIZE && other.getBottom() > y) {
+					x = other.getX() - EyeButton.SIZE - MARGIN;
+					moved = true;
+				}
+			}
+		}
+		eye.setPosition(x, y);
 	}
 
 	@Inject(method = "onEdited", at = @At("TAIL"))

@@ -9,7 +9,8 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.ARGB;
-import org.jspecify.annotations.Nullable;
+
+import java.util.function.Consumer;
 
 /**
  * Квадратная кнопка-«глазок» без подписи: показывает или скрывает пароль.
@@ -24,24 +25,26 @@ public final class EyeButton extends Button {
 	private static final Identifier ICON_SHOW = icon("eye");
 	private static final Identifier ICON_HIDE = icon("eye_slash");
 
-	/** Поле, к которому кнопка привязана справа; null — фиксированная позиция. */
-	private final @Nullable EditBox anchor;
+	/** Расставляет кнопку; вызывается при создании и перед каждой отрисовкой. */
+	private final Consumer<EyeButton> placement;
 
-	private EyeButton(int x, int y, @Nullable EditBox anchor) {
-		super(x, y, SIZE, SIZE, currentMessage(), EyeButton::toggle, DEFAULT_NARRATION);
-		this.anchor = anchor;
+	private EyeButton(Consumer<EyeButton> placement) {
+		super(0, 0, SIZE, SIZE, currentMessage(), EyeButton::toggle, DEFAULT_NARRATION);
+		this.placement = placement;
 		this.setTooltip(Tooltip.create(Component.translatable("passwordmask.eye.tooltip")));
-		this.followAnchor();
+		this.placement.accept(this);
 	}
 
-	/** Кнопка в заданной точке экрана. */
-	public static EyeButton at(int x, int y) {
-		return new EyeButton(x, y, null);
+	/** Кнопка, позицию которой задаёт вызывающий (пересчитывается каждый кадр). */
+	public static EyeButton placed(Consumer<EyeButton> placement) {
+		return new EyeButton(placement);
 	}
 
 	/** Кнопка вплотную справа от поля; следует за ним, если поле сдвинется (прокрутка, ресайз). */
 	public static EyeButton nextTo(EditBox field) {
-		return new EyeButton(0, 0, field);
+		return new EyeButton(button -> button.setPosition(
+				field.getRight() + GAP,
+				field.getY() + (field.getHeight() - SIZE) / 2));
 	}
 
 	private static Identifier icon(String name) {
@@ -57,15 +60,9 @@ public final class EyeButton extends Button {
 		button.setMessage(currentMessage());
 	}
 
-	private void followAnchor() {
-		if (this.anchor != null) {
-			this.setPosition(this.anchor.getRight() + GAP, this.anchor.getY() + (this.anchor.getHeight() - SIZE) / 2);
-		}
-	}
-
 	@Override
 	protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		this.followAnchor();
+		this.placement.accept(this);
 		this.extractDefaultSprite(graphics);
 		graphics.blitSprite(
 				RenderPipelines.GUI_TEXTURED,

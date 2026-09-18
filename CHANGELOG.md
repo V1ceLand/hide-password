@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+- Fixed: the eye button in login dialogs did not react to clicks
+  (the dialog's scroll area was taking the click).
+- Chat: the button no longer covers buttons of other mods in the bottom-right corner
+  (e.g. No Chat Reports) — it moves to the left of them.
+
 ## 1.2.0
 - The eye button is now a square icon (eye / crossed-out eye) instead of a text button.
 - Login dialogs: the button sits right next to the password field and follows it.
