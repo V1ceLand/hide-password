@@ -163,11 +163,14 @@ def main() -> None:
             "categories": ["utility"], "additional_categories": ["social"],
             "client_side": "required", "server_side": "unsupported",
             "project_type": "mod", "license_id": "MIT",
-            "source_url": GITHUB, "issues_url": DISCORD, "discord_url": DISCORD,
+            "source_url": GITHUB, "issues_url": GITHUB + "/issues", "discord_url": DISCORD,
             "initial_versions": [], "is_draft": True,
         }
         body, ctype = multipart(data, {"icon": ROOT / "common/src/main/resources/assets/hidepassword/icon.png"})
         project = request("POST", "/project", body, ctype)
+        # При создании стороны не сохраняются (остаются unknown) — выставляем отдельным запросом.
+        request("PATCH", f"/project/{project['id']}",
+                json.dumps({"client_side": "required", "server_side": "unsupported"}).encode(), "application/json")
         print("проект создан:", project["id"])
     existing = {v["version_number"] for v in request("GET", f"/project/{project['id']}/version") or []}
 

@@ -26,7 +26,8 @@ Recognised commands: `login`, `l`, `log`, `register`, `reg`, `changepassword`, `
 
 ## Download
 
-Pick the jar for your Minecraft version on the [Releases](https://github.com/V1ceLand/hide-password/releases) page.
+[Modrinth](https://modrinth.com/mod/hide-password-by-kozyr) (picks the right file for your Minecraft version)
+or the [GitHub Releases](https://github.com/V1ceLand/hide-password/releases) page.
 Every release is marked with the Minecraft versions it supports (`+mc<version>` in the file name).
 
 | | |
