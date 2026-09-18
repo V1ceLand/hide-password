@@ -1,8 +1,8 @@
-package com.kozyr.passwordmask.mixin;
+package com.kozyr.hidepassword.mixin;
 
-import com.kozyr.passwordmask.PasswordMask;
-import com.kozyr.passwordmask.PasswordMaskState;
-import com.kozyr.passwordmask.client.EyeButton;
+import com.kozyr.hidepassword.PasswordMask;
+import com.kozyr.hidepassword.PasswordMaskState;
+import com.kozyr.hidepassword.client.EyeButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.EditBox;
@@ -49,7 +49,7 @@ public abstract class ChatScreenMixin extends Screen {
 	private ChatComponent.DisplayMode displayMode;
 
 	@Unique
-	private EyeButton passwordmask$eye;
+	private EyeButton hidepassword$eye;
 
 	protected ChatScreenMixin(Component title) {
 		super(title);
@@ -59,9 +59,9 @@ public abstract class ChatScreenMixin extends Screen {
 	public abstract String normalizeChatMessage(String message);
 
 	@Inject(method = "init", at = @At("TAIL"))
-	private void passwordmask$addEyeButton(CallbackInfo ci) {
-		this.passwordmask$eye = this.addRenderableWidget(EyeButton.placed(this::passwordmask$placeEye));
-		this.passwordmask$updateEyeVisibility();
+	private void hidepassword$addEyeButton(CallbackInfo ci) {
+		this.hidepassword$eye = this.addRenderableWidget(EyeButton.placed(this::hidepassword$placeEye));
+		this.hidepassword$updateEyeVisibility();
 	}
 
 	/**
@@ -69,7 +69,7 @@ public abstract class ChatScreenMixin extends Screen {
 	 * (например, No Chat Reports), сдвигаемся левее них.
 	 */
 	@Unique
-	private void passwordmask$placeEye(EyeButton eye) {
+	private void hidepassword$placeEye(EyeButton eye) {
 		int x = this.width - EyeButton.SIZE - MARGIN;
 		int y = this.height - INPUT_AREA_HEIGHT - EyeButton.SIZE - MARGIN;
 		boolean moved = true;
@@ -88,14 +88,14 @@ public abstract class ChatScreenMixin extends Screen {
 	}
 
 	@Inject(method = "onEdited", at = @At("TAIL"))
-	private void passwordmask$onEdited(String value, CallbackInfo ci) {
-		this.passwordmask$updateEyeVisibility();
+	private void hidepassword$onEdited(String value, CallbackInfo ci) {
+		this.hidepassword$updateEyeVisibility();
 	}
 
 	@Unique
-	private void passwordmask$updateEyeVisibility() {
-		if (this.passwordmask$eye != null) {
-			this.passwordmask$eye.visible = PasswordMask.isPasswordCommand(this.input.getValue());
+	private void hidepassword$updateEyeVisibility() {
+		if (this.hidepassword$eye != null) {
+			this.hidepassword$eye.visible = PasswordMask.isPasswordCommand(this.input.getValue());
 		}
 	}
 
@@ -104,7 +104,7 @@ public abstract class ChatScreenMixin extends Screen {
 	 * но отправляем его на сервер как обычно.
 	 */
 	@Inject(method = "handleChatInput", at = @At("HEAD"), cancellable = true)
-	private void passwordmask$skipHistory(String message, boolean addToRecent, CallbackInfo ci) {
+	private void hidepassword$skipHistory(String message, boolean addToRecent, CallbackInfo ci) {
 		if (!addToRecent || !PasswordMask.isPasswordCommand(message)) {
 			return;
 		}
@@ -121,7 +121,7 @@ public abstract class ChatScreenMixin extends Screen {
 
 	/** Не даём паролю сохраниться как черновик чата. */
 	@Inject(method = "removed", at = @At("HEAD"))
-	private void passwordmask$clearDraft(CallbackInfo ci) {
+	private void hidepassword$clearDraft(CallbackInfo ci) {
 		if (PasswordMask.isPasswordCommand(this.input.getValue())) {
 			this.input.setValue("");
 		}
@@ -129,7 +129,7 @@ public abstract class ChatScreenMixin extends Screen {
 
 	/** Рассказчик (Narrator) не должен зачитывать пароль вслух. */
 	@Inject(method = "updateNarrationState", at = @At("HEAD"), cancellable = true)
-	private void passwordmask$maskNarration(NarrationElementOutput output, CallbackInfo ci) {
+	private void hidepassword$maskNarration(NarrationElementOutput output, CallbackInfo ci) {
 		output.add(NarratedElementType.TITLE, this.getTitle());
 		if (this.displayMode.showRestrictedPrompt) {
 			output.add(NarratedElementType.USAGE, CommonComponents.joinForNarration(USAGE_TEXT, RESTRICTED_NARRATION_TEXT));

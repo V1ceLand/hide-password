@@ -1,4 +1,4 @@
-package com.kozyr.passwordmask.mixin;
+package com.kozyr.hidepassword.mixin;
 
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -11,5 +11,5 @@ import java.util.List;
 public interface ScreenAccessor {
 	/** Список обработчиков ввода экрана: клик достаётся первому элементу под курсором. */
 	@Accessor("children")
-	List<GuiEventListener> passwordmask$getChildren();
+	List<GuiEventListener> hidepassword$getChildren();
 }

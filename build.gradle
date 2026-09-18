@@ -1,52 +1,79 @@
 plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom' apply false
+	id 'net.fabricmc.fabric-loom-remap' apply false
 }
 
-version = "${project.mod_version}+mc${project.minecraft_version}"
-group = project.maven_group
+def commonDir = file('common/src/main')
 
-base {
-	archivesName = project.archives_base_name
-}
+subprojects {
+	def obfuscated = project.property('obfuscated').toBoolean()
+	apply plugin: obfuscated ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
 
-loom {
-	splitEnvironmentSourceSets()
+	def mc = project.minecraft_version
+	def javaVersion = project.java_version as int
 
-	mods {
-		"passwordmask" {
-			sourceSet sourceSets.main
-			sourceSet sourceSets.client
+	version = "${rootProject.mod_version}+mc${mc}"
+	group = rootProject.maven_group
+	base.archivesName = rootProject.archives_base_name
+
+	sourceSets.main {
+		java.srcDir(new File(commonDir, 'java'))
+		resources.srcDir(new File(commonDir, 'resources'))
+	}
+
+	dependencies {
+		minecraft "com.mojang:minecraft:${mc}"
+		if (obfuscated) {
+			mappings loom.officialMojangMappings()
+			modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+		} else {
+			implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 		}
 	}
-}
 
-dependencies {
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
-}
-
-processResources {
-	def modVersion = project.mod_version
-	inputs.property "version", modVersion
-
-	filesMatching("fabric.mod.json") {
-		expand "version": modVersion
+	loom {
+		runs.configureEach {
+			// ./gradlew :<mc>:runClient -Pselftest — проверка, что все миксины применяются.
+			if (project.hasProperty('selftest')) {
+				vmArg '-Dhidepassword.selftest=true'
+			}
+		}
 	}
-}
 
-tasks.withType(JavaCompile).configureEach {
-	it.options.release = 25
-	it.options.encoding = "UTF-8"
-}
-
-java {
-	withSourcesJar()
-	sourceCompatibility = JavaVersion.VERSION_25
-	targetCompatibility = JavaVersion.VERSION_25
-}
-
-jar {
-	from("LICENSE") {
-		rename { "${it}_${project.archives_base_name}" }
+	processResources {
+		def props = [
+			version        : rootProject.mod_version,
+			minecraft_range: project.minecraft_range,
+			loader_min     : project.loader_min,
+			java_version   : project.java_version,
+		]
+		inputs.properties props
+		filesMatching('fabric.mod.json') {
+			expand props
+		}
 	}
+
+	tasks.withType(JavaCompile).configureEach {
+		options.release = javaVersion
+		options.encoding = 'UTF-8'
+	}
+
+	java {
+		sourceCompatibility = JavaVersion.toVersion(javaVersion)
+		targetCompatibility = JavaVersion.toVersion(javaVersion)
+	}
+
+	jar {
+		from(rootProject.file('LICENSE')) {
+			rename { "${it}_${rootProject.archives_base_name}" }
+		}
+	}
+
+	// Готовые jar всех версий собираются в build/release/ корня проекта.
+	def releaseJar = obfuscated ? tasks.named('remapJar') : tasks.named('jar')
+	tasks.register('collectRelease', Copy) {
+		from releaseJar
+		into rootProject.layout.buildDirectory.dir('release')
+	}
+	tasks.named('build') { finalizedBy 'collectRelease' }
 }

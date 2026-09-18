@@ -1,6 +1,6 @@
-package com.kozyr.passwordmask.client;
+package com.kozyr.hidepassword.client;
 
-import com.kozyr.passwordmask.PasswordMaskState;
+import com.kozyr.hidepassword.PasswordMaskState;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
@@ -31,7 +31,7 @@ public final class EyeButton extends Button {
 	private EyeButton(Consumer<EyeButton> placement) {
 		super(0, 0, SIZE, SIZE, currentMessage(), EyeButton::toggle, DEFAULT_NARRATION);
 		this.placement = placement;
-		this.setTooltip(Tooltip.create(Component.translatable("passwordmask.eye.tooltip")));
+		this.setTooltip(Tooltip.create(Component.translatable("hidepassword.eye.tooltip")));
 		this.placement.accept(this);
 	}
 
@@ -48,11 +48,11 @@ public final class EyeButton extends Button {
 	}
 
 	private static Identifier icon(String name) {
-		return Identifier.fromNamespaceAndPath(PasswordMaskClient.MOD_ID, "icon/" + name);
+		return Identifier.fromNamespaceAndPath(HidePasswordClient.MOD_ID, "icon/" + name);
 	}
 
 	private static Component currentMessage() {
-		return Component.translatable(PasswordMaskState.isShown() ? "passwordmask.eye.hide" : "passwordmask.eye.show");
+		return Component.translatable(PasswordMaskState.isShown() ? "hidepassword.eye.hide" : "hidepassword.eye.show");
 	}
 
 	private static void toggle(Button button) {

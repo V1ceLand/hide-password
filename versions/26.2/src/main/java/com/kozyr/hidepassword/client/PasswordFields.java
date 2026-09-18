@@ -1,6 +1,6 @@
-package com.kozyr.passwordmask.client;
+package com.kozyr.hidepassword.client;
 
-import com.kozyr.passwordmask.PasswordMask;
+import com.kozyr.hidepassword.PasswordMask;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;

@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "hidepassword",
+	"version": "${version}",
+	"name": "Hide Password (by KOZYR)",
+	"description": "Hides your password behind asterisks in chat (/login, /register, ...) and in server login dialogs. The eye button next to the field reveals it.",
+	"authors": [
+		"KOZYR"
+	],
+	"contact": {
+		"homepage": "https://github.com/V1ceLand/hide-password",
+		"sources": "https://github.com/V1ceLand/hide-password",
+		"issues": "https://github.com/V1ceLand/hide-password/issues"
+	},
+	"license": "MIT",
+	"icon": "assets/hidepassword/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"client": [
+			"com.kozyr.hidepassword.client.HidePasswordClient"
+		]
+	},
+	"mixins": [
+		"hidepassword.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=${loader_min}",
+		"minecraft": "${minecraft_range}",
+		"java": ">=${java_version}"
+	},
+	"breaks": {
+		"passwordmask": "*"
+	}
+}

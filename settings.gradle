@@ -7,6 +7,16 @@ pluginManagement {
 		mavenCentral()
 		gradlePluginPortal()
 	}
+	plugins {
+		id 'net.fabricmc.fabric-loom' version "${loom_version}"
+		id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+	}
 }
 
-rootProject.name = 'password-mask'
+rootProject.name = 'hide-password'
+
+// Каждая папка versions/<mc> — отдельная сборка под свою версию Minecraft.
+file('versions').eachDir { dir ->
+	include ":${dir.name}"
+	project(":${dir.name}").projectDir = dir
+}

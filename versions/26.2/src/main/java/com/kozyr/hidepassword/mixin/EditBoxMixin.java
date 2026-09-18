@@ -1,7 +1,7 @@
-package com.kozyr.passwordmask.mixin;
+package com.kozyr.hidepassword.mixin;
 
-import com.kozyr.passwordmask.PasswordMask;
-import com.kozyr.passwordmask.PasswordMaskState;
+import com.kozyr.hidepassword.PasswordMask;
+import com.kozyr.hidepassword.PasswordMaskState;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.network.chat.Component;
@@ -23,21 +23,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(EditBox.class)
 public abstract class EditBoxMixin {
 	@Unique
-	private String passwordmask$label = "";
+	private String hidepassword$label = "";
 
 	@Inject(
 			method = "<init>(Lnet/minecraft/client/gui/Font;IIIILnet/minecraft/client/gui/components/EditBox;Lnet/minecraft/network/chat/Component;)V",
 			at = @At("TAIL"))
-	private void passwordmask$addMaskFormatter(
+	private void hidepassword$addMaskFormatter(
 			Font font, int x, int y, int width, int height, EditBox oldBox, Component narration, CallbackInfo ci) {
-		this.passwordmask$label = narration == null ? "" : narration.getString();
+		this.hidepassword$label = narration == null ? "" : narration.getString();
 		EditBox self = (EditBox) (Object) this;
 		// EditBox отдаёт форматтеру только видимый кусок строки и его смещение в полной строке.
 		self.addFormatter((slice, offset) -> {
 			if (PasswordMaskState.isShown()) {
 				return null;
 			}
-			int start = PasswordMask.maskStart(self.getValue(), this.passwordmask$label);
+			int start = PasswordMask.maskStart(self.getValue(), this.hidepassword$label);
 			if (start < 0) {
 				return null;
 			}
@@ -47,13 +47,13 @@ public abstract class EditBoxMixin {
 
 	/** Рассказчик не должен зачитывать пароль вслух. */
 	@Inject(method = "createNarrationMessage", at = @At("HEAD"), cancellable = true)
-	private void passwordmask$maskNarration(CallbackInfoReturnable<MutableComponent> cir) {
+	private void hidepassword$maskNarration(CallbackInfoReturnable<MutableComponent> cir) {
 		if (PasswordMaskState.isShown()) {
 			return;
 		}
 		EditBox self = (EditBox) (Object) this;
 		String value = self.getValue();
-		int start = PasswordMask.maskStart(value, this.passwordmask$label);
+		int start = PasswordMask.maskStart(value, this.hidepassword$label);
 		if (start >= 0) {
 			cir.setReturnValue(Component.translatable("gui.narrate.editBox", self.getMessage(), PasswordMask.maskFrom(value, start)));
 		}

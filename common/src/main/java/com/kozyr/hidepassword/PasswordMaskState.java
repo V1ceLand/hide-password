@@ -1,4 +1,4 @@
-package com.kozyr.passwordmask;
+package com.kozyr.hidepassword;
 
 /**
  * Состояние «глазка»: показывать пароль или скрывать.

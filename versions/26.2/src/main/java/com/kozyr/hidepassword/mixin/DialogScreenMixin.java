@@ -1,7 +1,7 @@
-package com.kozyr.passwordmask.mixin;
+package com.kozyr.hidepassword.mixin;
 
-import com.kozyr.passwordmask.client.EyeButton;
-import com.kozyr.passwordmask.client.PasswordFields;
+import com.kozyr.hidepassword.client.EyeButton;
+import com.kozyr.hidepassword.client.PasswordFields;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
@@ -26,7 +26,7 @@ public abstract class DialogScreenMixin extends Screen {
 	}
 
 	@Inject(method = "init", at = @At("TAIL"))
-	private void passwordmask$addEyeButton(CallbackInfo ci) {
+	private void hidepassword$addEyeButton(CallbackInfo ci) {
 		// Поля диалога лежат внутри скролл-контейнера, поэтому ищем рекурсивно.
 		EditBox field = PasswordFields.findFirst(this.children());
 		if (field == null) {
@@ -35,7 +35,7 @@ public abstract class DialogScreenMixin extends Screen {
 		EyeButton eye = this.addRenderableWidget(EyeButton.nextTo(field));
 		// Клик получает первый элемент под курсором, а скролл-контейнер диалога
 		// перекрывает кнопку и забирает клик себе. Ставим кнопку в начало списка.
-		List<GuiEventListener> children = ((ScreenAccessor) (Object) this).passwordmask$getChildren();
+		List<GuiEventListener> children = ((ScreenAccessor) (Object) this).hidepassword$getChildren();
 		children.remove(eye);
 		children.add(0, eye);
 	}

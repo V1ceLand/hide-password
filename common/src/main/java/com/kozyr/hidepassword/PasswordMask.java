@@ -1,4 +1,4 @@
-package com.kozyr.passwordmask;
+package com.kozyr.hidepassword;
 
 import java.util.Locale;
 import java.util.Set;

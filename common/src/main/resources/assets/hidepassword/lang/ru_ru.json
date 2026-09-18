@@ -1,0 +1,5 @@
+{
+	"hidepassword.eye.show": "Показать пароль",
+	"hidepassword.eye.hide": "Скрыть пароль",
+	"hidepassword.eye.tooltip": "Показать или скрыть пароль (AuthMe /login, /register и окна входа)"
+}
