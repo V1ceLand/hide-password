@@ -10,7 +10,8 @@
 	"contact": {
 		"homepage": "https://github.com/V1ceLand/hide-password",
 		"sources": "https://github.com/V1ceLand/hide-password",
-		"issues": "https://github.com/V1ceLand/hide-password/issues"
+		"issues": "https://github.com/V1ceLand/hide-password/issues",
+		"discord": "https://discord.gg/6g6VqENtvU"
 	},
 	"license": "MIT",
 	"icon": "assets/hidepassword/icon.png",
@@ -30,5 +31,12 @@
 	},
 	"breaks": {
 		"passwordmask": "*"
+	},
+	"custom": {
+		"modmenu": {
+			"links": {
+				"modmenu.discord": "https://discord.gg/6g6VqENtvU"
+			}
+		}
 	}
 }
