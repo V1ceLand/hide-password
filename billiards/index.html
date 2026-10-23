@@ -198,6 +198,8 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="acts">
       <button class="btn" id="bPause" type="button" aria-pressed="false" title="Пауза (пробел)" aria-label="Пауза">
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg><span class="t">Пауза</span></button>
+      <button class="btn" id="bSound" type="button" aria-pressed="true" aria-label="Звук" title="Звук отражений">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none"/><path id="sndWaves" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9"/></svg><span class="t">Звук</span></button>
  <button class="btn ray-only" id="bAgain" type="button" title="Запустить тот же луч ещё раз">Заново</button>
       <button class="btn sandbox-only" id="bRandom" type="button" title="Добавить 20 шаров в случайных точках">+20</button>
       <button class="btn sandbox-only" id="bPhase" type="button" aria-pressed="false">Фазы</button>
@@ -602,6 +604,76 @@ function runDemo() {
   hueIx = seeds.length;
 }
 
+/* ---------- sound ---------- */
+// each reflection rings like a small metal bar: free-bar overtone ratios, fast attack, ~0.8 s decay
+const NOTES = [554.37, 659.26, 739.99, 830.61, 987.77, 1108.73, 1318.51, 1479.98, 1661.22, 1975.53]; // E major pentatonic, C#5..B6
+const PARTIALS = [[1, 1, 0.18], [2.756, 0.47, 0.13], [5.404, 0.15, 0.09], [8.933, 0.04, 0.06]]; // [ratio, gain, decay time constant s]
+let soundOn = true, actx = null, bus = null, lastPing = 0;
+try { soundOn = localStorage.getItem('billiards.sound') !== 'off'; } catch (_) {}
+function makeBus(ac) {
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5;
+  const master = ac.createGain(); master.gain.value = 0.55; master.connect(comp); comp.connect(ac.destination);
+  const len = Math.round(ac.sampleRate * 1.6), ir = ac.createBuffer(2, len, ac.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  const verb = ac.createConvolver(), wet = ac.createGain();
+  verb.buffer = ir; wet.gain.value = 0.12; verb.connect(wet); wet.connect(master);
+  const nlen = Math.round(ac.sampleRate * 0.004), noise = ac.createBuffer(1, nlen, ac.sampleRate), nd = noise.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nlen);
+  return { master, verb, noise };
+}
+function chime(ac, b, f, vel, pan, when) {
+  const out = ac.createGain();
+  let tail = out;
+  if (ac.createStereoPanner) { tail = ac.createStereoPanner(); tail.pan.value = pan; out.connect(tail); }
+  tail.connect(b.master); tail.connect(b.verb);
+  let last = null;
+  for (const [r, g, tau] of PARTIALS) {
+    if (f * r > ac.sampleRate / 2.2) continue;
+    const o = ac.createOscillator(), e = ac.createGain();
+    o.frequency.value = f * r;
+    e.gain.setValueAtTime(0, when);
+    e.gain.linearRampToValueAtTime(g * vel, when + 0.005);
+    e.gain.setTargetAtTime(0, when + 0.005, tau);
+    o.connect(e); e.connect(out);
+    o.start(when); o.stop(when + tau * 12 + 0.05); last = o;
+  }
+  // the strike itself: a 4 ms tick under the ring
+  const n = ac.createBufferSource(), ng = ac.createGain();
+  n.buffer = b.noise; ng.gain.value = 0.06 * vel; n.connect(ng); ng.connect(out); n.start(when);
+  if (last) last.onended = () => tail.disconnect();
+}
+function sparkle(ac, b, when) {
+  const len = Math.round(ac.sampleRate * 0.08), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+  const n = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain();
+  n.buffer = buf; hp.type = 'highpass'; hp.frequency.value = 7000; g.gain.value = 0.07;
+  n.connect(hp); hp.connect(g); g.connect(b.master); g.connect(b.verb); n.start(when);
+}
+function ensureAudio() {
+  if (!soundOn) return;
+  try {
+    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; actx = new AC(); bus = makeBus(actx); }
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+  } catch (_) { actx = null; }
+}
+const audible = () => soundOn && actx && actx.state === 'running';
+function ping(s, x, dn) {
+  if (!audible()) return;
+  const now = actx.currentTime;
+  if (now - lastPing < 0.07) return; // at most ~14 notes a second, so turbo turns into a shimmer, not noise
+  lastPing = now;
+  const bb = geo.bbox, pan = Math.max(-1, Math.min(1, ((x - bb.x0) / (bb.x1 - bb.x0) - 0.5) * 1.4));
+  chime(actx, bus, NOTES[Math.floor(s * 23) % NOTES.length], 0.14 + 0.2 * Math.abs(dn), pan, now + 0.005);
+}
+function launchSound() { if (audible()) sparkle(actx, bus, actx.currentTime + 0.005); }
+function setSound(on, user = true) {
+  soundOn = on;
+  try { localStorage.setItem('billiards.sound', on ? 'on' : 'off'); } catch (_) {}
+  const b = $('#bSound'); b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Звук включён' : 'Звук выключен');
+  $('#sndWaves').style.display = on ? '' : 'none';
+  if (on) { if (user || actx) ensureAudio(); } else if (actx) actx.suspend().catch(() => {});
+}
+
 /* ---------- ray mode ---------- */
 function rayDemo() {
   let seeds = table.demo();
@@ -615,6 +687,7 @@ function launchRay(x, y, a) {
   clearTrails();
   addBall(x, y, a, 38);
   rayOrigin = [x, y]; lastRay = { x, y, a, id: table.id };
+  launchSound();
   const c = $('#caption');
   c.textContent = table.caption || ''; c.classList.remove('gone');
   clearTimeout(capT); capT = setTimeout(() => c.classList.add('gone'), 3200);
@@ -657,6 +730,7 @@ function launch(x, y, a) {
     made.push(addBall(x, y, a + f * spread, hue));
   }
   if (n === 2) pair = made;
+  launchSound();
 }
 function randomInside() {
   const b = geo.bbox;
@@ -695,6 +769,7 @@ function advance(b, dist) {
     const l = Math.hypot(dx, dy); b.dx = dx / l; b.dy = dy / l;
     let c = b.dx * tx + b.dy * ty; if (c > 1) c = 1; else if (c < -1) c = -1;
     if (phaseOn) phaseQ.push(s / geo.total, c, b.hue);
+    if (soundOn) ping(s / geo.total, b.x, dn);
     b.skip = h.p.t === 'seg' ? h.p : null;
     aim(b);
     n++; bounces++;
@@ -993,6 +1068,9 @@ function setPaused(p) {
   b.querySelector('svg').innerHTML = p ? '<path d="M4 2l10 6-10 6z"/>' : '<rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/>';
 }
 $('#bPause').addEventListener('click', () => setPaused(!paused));
+$('#bSound').addEventListener('click', () => setSound(!soundOn));
+document.addEventListener('pointerdown', ensureAudio, true);
+document.addEventListener('keydown', ensureAudio, true);
 $('#bRandom').addEventListener('click', () => addRandom(20));
 $('#bClear').addEventListener('click', () => { balls = []; pair = null; bounces = 0; clearTrails(); clearPhase(); });
 $('#bWipe').addEventListener('click', () => { clearTrails(); clearPhase(); });
@@ -1059,6 +1137,7 @@ new ResizeObserver(() => resizePhase()).observe($('#phase'));
 
 /* ---------- boot ---------- */
 readTokens();
+setSound(soundOn, false);
 resize();
 setTable('ellipse');
 if (window.innerWidth >= 900) setPhase(true);
