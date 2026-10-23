@@ -58,6 +58,7 @@ h1{margin:0;font-family:var(--f-display);font-style:italic;font-weight:600;font-
 h1 span{color:var(--accent)}
 .tables{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px;padding:2px 4px}
 .tables::-webkit-scrollbar{display:none}
+@media (min-width:900px){.tables{flex-wrap:wrap;overflow:visible}}
 .chip{flex:none;border:1px solid var(--rule);background:transparent;border-radius:3px;padding:5px 11px;font-size:.84rem;cursor:pointer;white-space:nowrap}
 .chip:hover{border-color:var(--muted)}
 .chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -409,6 +410,21 @@ function foot(P, A, B) {
   return [A[0] + ex * u, A[1] + ey * u];
 }
 const TRI = [[-1.2, 0.8], [1.3, 0.8], [0.25, -0.95]];
+// circular wall from P to Q (contour runs clockwise on screen); depth > 0 bows into the table, < 0 bows outward
+function bow(P, Q, depth) {
+  const L = Math.hypot(Q[0] - P[0], Q[1] - P[1]);
+  const nx = -(Q[1] - P[1]) / L, ny = (Q[0] - P[0]) / L;
+  const R = (L * L / 4 + depth * depth) / (2 * Math.abs(depth));
+  const M = [(P[0] + Q[0]) / 2 + nx * depth, (P[1] + Q[1]) / 2 + ny * depth];
+  const sg = Math.sign(depth), cx = M[0] - sg * nx * R, cy = M[1] - sg * ny * R;
+  const ang = q => Math.atan2(q[1] - cy, q[0] - cx), mod = a => ((a % TAU) + TAU) % TAU;
+  const aP = ang(P), aQ = ang(Q), aM = ang(M);
+  if (mod(aM - aP) < mod(aQ - aP)) return arc(cx, cy, R, aP, aP + mod(aQ - aP));
+  return { ...arc(cx, cy, R, aQ, aQ + mod(aP - aQ)), rev: true };
+}
+const ngon = (n, r, rot = -Math.PI / 2) => Array.from({ length: n }, (_, k) => [r * Math.cos(rot + k * TAU / n), r * Math.sin(rot + k * TAU / n)]);
+const STAR = Array.from({ length: 10 }, (_, k) => { const r = k % 2 ? 0.45 : 1.1, a = -Math.PI / 2 + k * Math.PI / 5; return [r * Math.cos(a), r * Math.sin(a)]; });
+const SQ = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 // Penrose unilluminable room: two half-ellipses whose foci carry the tips of two spikes
 const PR = (() => {
   const A = 2.4, B = 1.9, h = 1.54, w = 0.115, d = 0.27, c = Math.sqrt(A * A - B * B);
@@ -437,10 +453,22 @@ const TABLES = [
     note: '<b>Интегрируемый.</b> Угол отражения не меняется, поэтому траектория касается концентрической окружности. Угол, соизмеримый с π, даёт замкнутую орбиту — звёздный многоугольник.',
     build: () => ({ outer: [circ(0, 0, 1)], holes: [] }),
     demo: () => [{ x: 0.35, y: 0, a: 1.05, hue: 228 }, { x: -0.2, y: 0.1, a: 0.3, hue: 8 }] },
+  { id: 'ring', name: 'Кольцо', caption: 'Луч навсегда помнит, на каком расстоянии прошёл от центра.',
+    note: '<b>Интегрируемый.</b> Как и в круге, у луча сохраняется прицельное расстояние до центра. Если оно больше радиуса внутреннего зеркала, луч его не замечает; если меньше — бьётся о него всегда под одним и тем же углом.',
+    build: () => ({ outer: [circ(0, 0, 1.2)], holes: [circ(0, 0, 0.5)] }),
+    demo: () => [{ x: 0.85, y: 0, a: 1.9, hue: 228 }, { x: 0, y: -0.9, a: 1.2, hue: 8 }] },
   { id: 'rect', name: 'Прямоугольник', caption: 'Наклон решает всё: путь замкнётся или заполнит комнату.',
     note: '<b>Развёртка.</b> Отразите стол зеркально — траектория станет прямой на решётке. Рациональный наклон даёт периодическую орбиту, иррациональный равномерно заполняет стол.',
     build: () => ({ outer: poly([[-1.3, -0.8], [1.3, -0.8], [1.3, 0.8], [-1.3, 0.8]]), holes: [] }),
     demo: () => [{ x: -0.4, y: 0.1, a: Math.atan(1 / Math.SQRT2), hue: 228 }] },
+  { id: 'pentagon', name: 'Пятиугольник', caption: 'Луч либо замкнётся, либо побывает везде — третьего не дано.',
+    note: '<b>Бильярд Вича.</b> Правильные многоугольники подчиняются дихотомии Вича: в каждом направлении либо все траектории замкнуты, либо каждая равномерно заполняет стол.',
+    build: () => ({ outer: poly(ngon(5, 1.1)), holes: [] }),
+    demo: () => [{ x: -0.2, y: 0.1, a: 0.37, hue: 228 }, { x: 0.15, y: 0.25, a: 2.6, hue: 8 }] },
+  { id: 'star', name: 'Звезда', caption: 'Пять острых ловушек для света.',
+    note: '<b>Невыпуклый многоугольник.</b> Острые лучи звезды работают как ловушки: свет заходит в них, многократно отражается и выходит в неожиданную сторону.',
+    build: () => ({ outer: poly(STAR), holes: [] }),
+    demo: () => [{ x: 0, y: 0.05, a: 0.2, hue: 228 }, { x: 0.1, y: -0.1, a: 2.3, hue: 8 }] },
   { id: 'stadium', name: 'Стадион', caption: 'Один луч рано или поздно побывает везде.',
     note: '<b>Хаос.</b> Стадион Бунимовича: две полуокружности и отрезки. Система эргодична — два шара-близнеца с разницей направлений 10⁻⁶ рад быстро разлетаются (смотрите Δ внизу).',
     build: () => { const L = 0.8, r = 0.8; return { outer: [arc(L, 0, r, -Math.PI / 2, Math.PI / 2), seg(L, r, -L, r), arc(-L, 0, r, Math.PI / 2, 1.5 * Math.PI), seg(-L, -r, L, -r)], holes: [] }; },
@@ -449,10 +477,36 @@ const TABLES = [
     note: '<b>Рассеивающий.</b> Бильярд Синая: квадрат с круглым препятствием. Выпуклый рассеиватель разводит соседние лучи экспоненциально — это модель газа твёрдых шаров.',
     build: () => ({ outer: poly([[-1, -1], [1, -1], [1, 1], [-1, 1]]), holes: [circ(0, 0, 0.42)] }),
     demo: () => [{ x: -0.7, y: -0.6, a: 0.33, hue: 228 }, { x: -0.7, y: -0.6, a: 0.33 + 1e-6, hue: 8 }], twin: true },
+  { id: 'concave', name: 'Вогнутый квадрат', caption: 'Каждая стенка разбрасывает свет.', twin: true,
+    note: '<b>Рассеивающий.</b> Все четыре стенки выгнуты внутрь, как препятствие Синая. Такой бильярд хаотичен даже без препятствия в центре: близнецы разлетаются экспоненциально.',
+    build: () => ({ outer: SQ.map((P, i) => bow(P, SQ[(i + 1) % 4], 0.25)), holes: [] }),
+    demo: () => [{ x: -0.3, y: 0.2, a: 0.5, hue: 228 }, { x: -0.3, y: 0.2, a: 0.5 + 1e-6, hue: 8 }] },
   { id: 'mushroom', name: 'Гриб', caption: 'В шляпке — порядок, в ножке — хаос.',
     note: '<b>Смешанное фазовое пространство.</b> Гриб Бунимовича: траектории, которые никогда не заходят в ножку, регулярны (островки на фазовом портрете), остальные хаотичны.',
     build: () => { const w = 0.3, h = 0.9; return { outer: [arc(0, 0, 1, Math.PI, TAU), seg(1, 0, w, 0), seg(w, 0, w, h), seg(w, h, -w, h), seg(-w, h, -w, 0), seg(-w, 0, -1, 0)], holes: [] }; },
     demo: () => [{ x: 0, y: -0.62, a: 0.02, hue: 228 }, { x: 0.05, y: 0.6, a: -1.3, hue: 8 }] },
+  { id: 'lemon', name: 'Лимон', caption: 'Две плавные дуги и два острых кончика.',
+    note: '<b>Лимон.</b> Пересечение двух кругов. Гладкие дуги и острые углы дают смешанную динамику: островки порядка среди хаоса.',
+    build: () => ({ outer: [arc(0.5, 0, 1, 2 * Math.PI / 3, 4 * Math.PI / 3), arc(-0.5, 0, 1, -Math.PI / 3, Math.PI / 3)], holes: [] }),
+    demo: () => [{ x: -0.1, y: 0.2, a: 0.3, hue: 228 }, { x: 0.05, y: -0.4, a: 2.0, hue: 8 }] },
+  { id: 'cutcircle', name: 'Срезанный круг', caption: 'Один прямой срез — и круг теряет предсказуемость.',
+    note: '<b>Смешанный.</b> Отрежьте от круга сегмент — и интегрируемость пропадает: лучи вдоль дуги остаются регулярными, а отражения от среза порождают хаос. Срез точно по диаметру снова дал бы интегрируемый полукруг.',
+    build: () => { const y = Math.sqrt(0.75); return { outer: [arc(0, 0, 1, Math.PI / 3, 5 * Math.PI / 3), seg(0.5, -y, 0.5, y)], holes: [] }; },
+    demo: () => [{ x: -0.2, y: 0.1, a: 0.4, hue: 228 }, { x: -0.5, y: -0.6, a: 0.15, hue: 8 }] },
+  { id: 'shiftring', name: 'Смещённое кольцо', caption: 'Сдвиньте зеркало — и порядок сменится хаосом.',
+    note: '<b>Смешанный.</b> Стоит сдвинуть внутренний круг — и появляется хаос. Лучи, скользящие вдоль внешней стенки («шепчущая галерея»), остаются регулярными.',
+    build: () => ({ outer: [circ(0, 0, 1.2)], holes: [circ(0.35, 0, 0.45)] }),
+    demo: () => [{ x: -0.6, y: 0.3, a: 0.9, hue: 8 }, { x: 0, y: -1.1, a: 0.1, hue: 228 }] },
+  { id: 'crescent', name: 'Полумесяц', caption: 'В рогах полумесяца свет теряется надолго.',
+    note: '<b>Фокусировка и рассеяние.</b> Внешняя дуга собирает лучи, внутренняя разбрасывает. В узких рогах луч может долго метаться, прежде чем выбраться.',
+    build: () => { const x = (1 - 0.85 * 0.85 + 0.45 * 0.45) / 0.9, a0 = Math.acos(x), b0 = Math.acos((x - 0.45) / 0.85);
+      return { outer: [arc(0, 0, 1, a0, TAU - a0), { ...arc(0.45, 0, 0.85, b0, TAU - b0), rev: true }], holes: [] }; },
+    demo: () => [{ x: -0.8, y: 0, a: -1.2, hue: 228 }, { x: -0.5, y: 0.65, a: 0.3, hue: 8 }] },
+  { id: 'heart', name: 'Сердце', caption: 'Две половинки круга и прямой угол: кто победит — порядок или хаос?',
+    note: '<b>Сердце.</b> Две выпуклые полуокружности, прямой угол внизу и выемка сверху. Дуги фокусируют, выемка рассеивает — динамика смешанная.',
+    build: () => { const L = Math.SQRT2, B = [0, 1], Rt = [1, 0], T = [0, -1], Lf = [-1, 0];
+      return { outer: [bow(Lf, T, -L / 2), bow(T, Rt, -L / 2), seg(1, 0, 0, 1), seg(0, 1, -1, 0)], holes: [] }; },
+    demo: () => [{ x: 0, y: 0.3, a: -1.2, hue: 228 }, { x: -0.6, y: -0.5, a: 0.4, hue: 8 }] },
   { id: 'triangle', name: 'Треугольник', caption: 'Здесь есть путь, который замыкается за три отражения.',
     note: '<b>Многоугольник.</b> В остроугольном треугольнике есть периодическая орбита Фаньяно — треугольник из оснований высот, самый короткий вписанный. Синий шар идёт по ней.',
     build: () => ({ outer: poly(TRI), holes: [] }),
