@@ -18,6 +18,7 @@
   --f-display:"Spectral", Georgia, "Times New Roman", serif;
   --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ray:255,184,92;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
@@ -25,6 +26,12 @@
     --line:#c7d0e2; --accent:#8ea5ff; --on-accent:#0c121c; --rule:rgba(225,230,239,.14); --panel:rgba(18,26,39,.94);
     --ball-s:88%; --ball-l:66%; --trail-op:lighter; color-scheme:dark;
   }
+}
+/* Ray mode commits to one cinematic look: black room, brushed-steel walls, golden laser */
+.app[data-mode="ray"]{
+  --bg:#141519; --paper:#040405; --grid:transparent; --ink:#ebe6dc; --muted:#8b867d;
+  --line:#d6d0c4; --accent:#f2b45c; --on-accent:#141519; --rule:rgba(235,230,220,.13); --panel:rgba(20,21,25,.94);
+  --trail-op:lighter; color-scheme:dark;
 }
 :root[data-theme="dark"]{
   --bg:#0c121c; --paper:#121a27; --grid:rgba(138,162,255,.07); --ink:#e1e6ef; --muted:#8c98ae;
@@ -37,12 +44,16 @@ button{font:inherit;color:inherit}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
 .top,.stage,.dock{min-width:0}
+.app{background:var(--bg);color:var(--ink)}
+body:has(.app[data-mode="ray"]){background:#141519}
+.app[data-mode="ray"] .sandbox-only,.app:not([data-mode="ray"]) .ray-only{display:none!important}
 
 /* header */
 .top{display:flex;flex-direction:column;gap:8px;padding-block:10px 8px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
   border-bottom:1px solid var(--rule)}
-.titlerow{display:flex;align-items:baseline;gap:8px 18px;flex-wrap:wrap}
+.titlerow{display:flex;align-items:center;justify-content:space-between;gap:8px 18px;flex-wrap:wrap}
+.modes button{padding:5px 12px;font-size:.82rem}
 h1{margin:0;font-family:var(--f-display);font-style:italic;font-weight:600;font-size:1.45rem;line-height:1.1;letter-spacing:-.01em;text-wrap:balance}
 h1 span{color:var(--accent)}
 .tables{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px;padding:2px 4px}
@@ -70,6 +81,17 @@ h1 span{color:var(--accent)}
   background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-size:.82rem;
   max-width:calc(100% - 24px);box-shadow:0 6px 24px rgba(0,0,0,.08)}
 .drawbar span{color:var(--muted)}
+.raytop{position:absolute;top:12px;left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));
+  display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;font-size:.7rem;letter-spacing:.08em;color:var(--ink)}
+.rcount{display:grid;justify-items:end;gap:2px}
+.rcount small{font-size:.62rem;color:var(--muted);letter-spacing:.1em}
+.rcount b{font-size:1.15rem;font-weight:500;letter-spacing:.04em}
+.caption{position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(30ch,calc(100% - 48px));margin:0;text-align:center;
+  font-size:clamp(1rem,3.6vw,1.35rem);line-height:1.35;color:#f4efe6;text-shadow:0 0 18px rgba(0,0,0,.9);pointer-events:none;
+  transition:opacity 1.2s ease;text-wrap:balance}
+.caption.gone{opacity:0}
+.rhint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);margin:0;font-size:.74rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
 .toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);
   border-radius:4px;padding:7px 12px;font-size:.82rem;max-width:calc(100% - 24px);pointer-events:none}
 
@@ -124,15 +146,22 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <header class="top">
     <div class="titlerow">
       <h1>Математический <span>бильярд</span></h1>
+      <div class="seg modes" id="modes" role="group" aria-label="Режим">
+        <button type="button" data-mode="sandbox" aria-pressed="true">Песочница</button>
+        <button type="button" data-mode="ray" aria-pressed="false">Луч</button>
+      </div>
     </div>
     <nav class="tables" id="tables" aria-label="Форма стола"></nav>
-    <p class="note" id="note" title="Нажмите, чтобы развернуть"></p>
+    <p class="note sandbox-only" id="note" title="Нажмите, чтобы развернуть"></p>
   </header>
 
   <main class="stage" id="stage">
     <div class="board" id="board">
       <canvas id="cv" aria-label="Бильярдный стол"></canvas>
-      <div class="hud mono" id="hud"></div>
+      <div class="hud mono sandbox-only" id="hud"></div>
+      <div class="raytop mono ray-only"><span>ИДЕАЛЬНЫЕ ЗЕРКАЛА</span><span class="rcount"><small>ОТРАЖЕНИЙ</small><b id="rcount">0000</b></span></div>
+      <p class="caption mono ray-only" id="caption"></p>
+      <p class="rhint ray-only">Коснитесь стола — новый луч. Потяните — задайте направление.</p>
       <div class="drawbar" id="drawbar" hidden>
         <span id="drawMsg">Касайтесь — ставьте вершины</span>
         <button class="btn" id="drawClose" type="button">Замкнуть</button>
@@ -154,18 +183,25 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </main>
 
   <footer class="dock">
-    <div class="seg" id="tools" role="group" aria-label="Инструмент">
+    <div class="seg sandbox-only" id="tools" role="group" aria-label="Инструмент">
       <button type="button" data-tool="launch" aria-pressed="true">Запуск</button>
       <button type="button" data-tool="obstacle" aria-pressed="false">Препятствие</button>
       <button type="button" data-tool="draw" aria-pressed="false">Рисовать</button>
     </div>
+    <div class="seg ray-only" id="rspeed" role="group" aria-label="Скорость луча">
+      <button type="button" data-v="slow" aria-pressed="false">Медленно</button>
+      <button type="button" data-v="normal" aria-pressed="true">Нормально</button>
+      <button type="button" data-v="fast" aria-pressed="false">Быстро</button>
+      <button type="button" data-v="turbo" aria-pressed="false">Турбо</button>
+    </div>
     <div class="acts">
       <button class="btn" id="bPause" type="button" aria-pressed="false" title="Пауза (пробел)" aria-label="Пауза">
         <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg><span class="t">Пауза</span></button>
-      <button class="btn" id="bRandom" type="button" title="Добавить 20 шаров в случайных точках">+20</button>
-      <button class="btn" id="bPhase" type="button" aria-pressed="false">Фазы</button>
-      <button class="btn" id="bClear" type="button">Очистить</button>
-      <button class="btn" id="bSettings" type="button" aria-expanded="false" aria-controls="sheet" aria-label="Настройки">
+ <button class="btn ray-only" id="bAgain" type="button" title="Запустить тот же луч ещё раз">Заново</button>
+      <button class="btn sandbox-only" id="bRandom" type="button" title="Добавить 20 шаров в случайных точках">+20</button>
+      <button class="btn sandbox-only" id="bPhase" type="button" aria-pressed="false">Фазы</button>
+      <button class="btn sandbox-only" id="bClear" type="button">Очистить</button>
+      <button class="btn sandbox-only" id="bSettings" type="button" aria-expanded="false" aria-controls="sheet" aria-label="Настройки">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h7M12 4h2M2 12h2M7 12h7"/><circle cx="10.5" cy="4" r="1.6"/><circle cx="5.5" cy="12" r="1.6"/></svg><span class="t">Настройки</span></button>
     </div>
 
@@ -211,7 +247,7 @@ const $ = s => document.querySelector(s);
 /* ---------- boundary pieces ---------- */
 const seg = (ax, ay, bx, by) => ({ t: 'seg', ax, ay, bx, by });
 const arc = (cx, cy, r, a0, a1) => ({ t: 'arc', cx, cy, r, a0, a1 });
-const ell = (cx, cy, a, b) => ({ t: 'ell', cx, cy, a, b });
+const ell = (cx, cy, a, b, a0 = 0, a1 = TAU) => ({ t: 'ell', cx, cy, a, b, a0, a1 });
 const circ = (cx, cy, r) => arc(cx, cy, r, 0, TAU);
 function poly(pts) {
   const out = [];
@@ -224,24 +260,24 @@ function poly(pts) {
 // rotate by +90°: (x, y) -> (-y, x)
 function rotPiece(p) {
   if (p.t === 'seg') return seg(-p.ay, p.ax, -p.by, p.bx);
-  if (p.t === 'arc') return arc(-p.cy, p.cx, p.r, p.a0 + Math.PI / 2, p.a1 + Math.PI / 2);
-  return ell(-p.cy, p.cx, p.b, p.a);
+  if (p.t === 'arc') return { ...arc(-p.cy, p.cx, p.r, p.a0 + Math.PI / 2, p.a1 + Math.PI / 2), rev: p.rev };
+  return ell(-p.cy, p.cx, p.b, p.a, p.a0 + Math.PI / 2, p.a1 + Math.PI / 2);
 }
 const rotSeed = s => ({ x: -s.y, y: s.x, a: s.a + Math.PI / 2, hue: s.hue });
 
 function ellPrep(p) {
-  const N = 720, cum = new Float64Array(N + 1);
+  const N = 720, cum = new Float64Array(N + 1), span = p.a1 - p.a0;
   const sp = th => Math.hypot(p.a * Math.sin(th), p.b * Math.cos(th));
-  let s = 0, prev = sp(0);
+  let s = 0, prev = sp(p.a0);
   for (let i = 1; i <= N; i++) {
-    const cur = sp(i / N * TAU);
-    s += (prev + cur) / 2 * TAU / N; cum[i] = s; prev = cur;
+    const cur = sp(p.a0 + i / N * span);
+    s += (prev + cur) / 2 * span / N; cum[i] = s; prev = cur;
   }
   p.cum = cum; p.N = N; p.len = s;
 }
 function ellS(p, th) {
-  th = ((th % TAU) + TAU) % TAU;
-  const f = th / TAU * p.N, i = Math.min(p.N - 1, f | 0);
+  const off = (((th - p.a0) % TAU) + TAU) % TAU;
+  const f = Math.min(p.N, off / (p.a1 - p.a0) * p.N), i = Math.min(p.N - 1, f | 0);
   return p.cum[i] + (p.cum[i + 1] - p.cum[i]) * (f - i);
 }
 function finalize(geo) {
@@ -266,7 +302,7 @@ function samplePiece(p, n) {
     const f = i / n;
     if (p.t === 'seg') out.push([p.ax + (p.bx - p.ax) * f, p.ay + (p.by - p.ay) * f]);
     else if (p.t === 'arc') { const a = p.a0 + (p.a1 - p.a0) * f; out.push([p.cx + p.r * Math.cos(a), p.cy + p.r * Math.sin(a)]); }
-    else { const a = TAU * f; out.push([p.cx + p.a * Math.cos(a), p.cy + p.b * Math.sin(a)]); }
+    else { const a = p.a0 + (p.a1 - p.a0) * f; out.push([p.cx + p.a * Math.cos(a), p.cy + p.b * Math.sin(a)]); }
   }
   return out;
 }
@@ -279,6 +315,14 @@ function arcOk(p, t, px, py, dx, dy) {
   off = ((off % TAU) + TAU) % TAU;
   if (off <= p.a1 - p.a0 + 1e-9) { HU = off; return true; }
   return false;
+}
+function ellOk(p, x, y) {
+  const th = Math.atan2(y, x);
+  if (p.a1 - p.a0 < TAU) {
+    const off = (((th - p.a0) % TAU) + TAU) % TAU;
+    if (off > p.a1 - p.a0 + 1e-9) return false;
+  }
+  HU = th; return true;
 }
 function hitT(p, px, py, dx, dy) {
   if (p.t === 'seg') {
@@ -300,12 +344,10 @@ function hitT(p, px, py, dx, dy) {
   const X = (px - p.cx) / p.a, Y = (py - p.cy) / p.b, DX = dx / p.a, DY = dy / p.b;
   const A = DX * DX + DY * DY, B = X * DX + Y * DY, C = X * X + Y * Y - 1, D = B * B - A * C;
   if (D < 0) return Infinity;
-  const sq = Math.sqrt(D);
-  let t = (-B - sq) / A;
-  if (!(t > EPS)) t = (-B + sq) / A;
-  if (!(t > EPS)) return Infinity;
-  HU = Math.atan2(Y + DY * t, X + DX * t);
-  return t;
+  const sq = Math.sqrt(D), t1 = (-B - sq) / A, t2 = (-B + sq) / A;
+  if (t1 > EPS && ellOk(p, X + DX * t1, Y + DY * t1)) return t1;
+  if (t2 > EPS && ellOk(p, X + DX * t2, Y + DY * t2)) return t2;
+  return Infinity;
 }
 function crossings(p, px, py, dx, dy) {
   if (p.t === 'seg') {
@@ -325,7 +367,8 @@ function crossings(p, px, py, dx, dy) {
   const A = DX * DX + DY * DY, B = X * DX + Y * DY, C = X * X + Y * Y - 1, D = B * B - A * C;
   if (D <= 0) return 0;
   const sq = Math.sqrt(D);
-  return ((-B - sq) / A > 0 ? 1 : 0) + ((-B + sq) / A > 0 ? 1 : 0);
+  const t1 = (-B - sq) / A, t2 = (-B + sq) / A;
+  return ((t1 > 0 && ellOk(p, X + DX * t1, Y + DY * t1)) ? 1 : 0) + ((t2 > 0 && ellOk(p, X + DX * t2, Y + DY * t2)) ? 1 : 0);
 }
 function inside(x, y) {
   let n = 0;
@@ -366,32 +409,51 @@ function foot(P, A, B) {
   return [A[0] + ex * u, A[1] + ey * u];
 }
 const TRI = [[-1.2, 0.8], [1.3, 0.8], [0.25, -0.95]];
+// Penrose unilluminable room: two half-ellipses whose foci carry the tips of two spikes
+const PR = (() => {
+  const A = 2.4, B = 1.9, h = 1.54, w = 0.115, d = 0.27, c = Math.sqrt(A * A - B * B);
+  const R = (h * h + d * d) / (2 * d);
+  return { A, B, h, w, d, c, R, al: Math.asin(h / R) };
+})();
+function penroseRoom() {
+  const { A, B, h, w, d, c, R, al } = PR, P = Math.PI;
+  return { outer: [
+    ell(0, -h, A, B, P, TAU),
+    seg(A, -h, A, -w), seg(A, -w, c, -w), seg(c, -w, c, -h),
+    { ...arc(c - d + R, 0, R, P - al, P + al), rev: true },
+    seg(c, h, c, w), seg(c, w, A, w), seg(A, w, A, h),
+    ell(0, h, A, B, 0, P),
+    seg(-A, h, -A, w), seg(-A, w, -c, w), seg(-c, w, -c, h),
+    { ...arc(-c + d - R, 0, R, -al, al), rev: true },
+    seg(-c, -h, -c, -w), seg(-c, -w, -A, -w), seg(-A, -w, -A, -h),
+  ], holes: [] };
+}
 const TABLES = [
-  { id: 'ellipse', name: 'Эллипс',
+  { id: 'ellipse', name: 'Эллипс', caption: 'Луч через один фокус всегда приходит во второй.',
     note: '<b>Интегрируемый.</b> Каждая траектория касается каустики — софокусного эллипса или гиперболы. Луч через один фокус после отражения проходит через другой (фокусы отмечены крестиками).',
     build: () => ({ outer: [ell(0, 0, 1.5, 1)], holes: [] }),
     demo: () => [{ x: 0, y: 0, a: 0.42, hue: 228 }, { x: 0, y: 0.72, a: 0.12, hue: 8 }, { x: -Math.sqrt(1.25), y: 0, a: 1.2, hue: 165 }] },
-  { id: 'circle', name: 'Круг',
+  { id: 'circle', name: 'Круг', caption: 'Угол отражения здесь не меняется никогда.',
     note: '<b>Интегрируемый.</b> Угол отражения не меняется, поэтому траектория касается концентрической окружности. Угол, соизмеримый с π, даёт замкнутую орбиту — звёздный многоугольник.',
     build: () => ({ outer: [circ(0, 0, 1)], holes: [] }),
     demo: () => [{ x: 0.35, y: 0, a: 1.05, hue: 228 }, { x: -0.2, y: 0.1, a: 0.3, hue: 8 }] },
-  { id: 'rect', name: 'Прямоугольник',
+  { id: 'rect', name: 'Прямоугольник', caption: 'Наклон решает всё: путь замкнётся или заполнит комнату.',
     note: '<b>Развёртка.</b> Отразите стол зеркально — траектория станет прямой на решётке. Рациональный наклон даёт периодическую орбиту, иррациональный равномерно заполняет стол.',
     build: () => ({ outer: poly([[-1.3, -0.8], [1.3, -0.8], [1.3, 0.8], [-1.3, 0.8]]), holes: [] }),
     demo: () => [{ x: -0.4, y: 0.1, a: Math.atan(1 / Math.SQRT2), hue: 228 }] },
-  { id: 'stadium', name: 'Стадион',
+  { id: 'stadium', name: 'Стадион', caption: 'Один луч рано или поздно побывает везде.',
     note: '<b>Хаос.</b> Стадион Бунимовича: две полуокружности и отрезки. Система эргодична — два шара-близнеца с разницей направлений 10⁻⁶ рад быстро разлетаются (смотрите Δ внизу).',
     build: () => { const L = 0.8, r = 0.8; return { outer: [arc(L, 0, r, -Math.PI / 2, Math.PI / 2), seg(L, r, -L, r), arc(-L, 0, r, Math.PI / 2, 1.5 * Math.PI), seg(-L, -r, L, -r)], holes: [] }; },
     demo: () => [{ x: -0.3, y: 0.2, a: 0.7, hue: 228 }, { x: -0.3, y: 0.2, a: 0.7 + 1e-6, hue: 8 }], twin: true },
-  { id: 'sinai', name: 'Синай',
+  { id: 'sinai', name: 'Синай', caption: 'Круглое зеркало разбрасывает свет во все стороны.',
     note: '<b>Рассеивающий.</b> Бильярд Синая: квадрат с круглым препятствием. Выпуклый рассеиватель разводит соседние лучи экспоненциально — это модель газа твёрдых шаров.',
     build: () => ({ outer: poly([[-1, -1], [1, -1], [1, 1], [-1, 1]]), holes: [circ(0, 0, 0.42)] }),
     demo: () => [{ x: -0.7, y: -0.6, a: 0.33, hue: 228 }, { x: -0.7, y: -0.6, a: 0.33 + 1e-6, hue: 8 }], twin: true },
-  { id: 'mushroom', name: 'Гриб',
+  { id: 'mushroom', name: 'Гриб', caption: 'В шляпке — порядок, в ножке — хаос.',
     note: '<b>Смешанное фазовое пространство.</b> Гриб Бунимовича: траектории, которые никогда не заходят в ножку, регулярны (островки на фазовом портрете), остальные хаотичны.',
     build: () => { const w = 0.3, h = 0.9; return { outer: [arc(0, 0, 1, Math.PI, TAU), seg(1, 0, w, 0), seg(w, 0, w, h), seg(w, h, -w, h), seg(-w, h, -w, 0), seg(-w, 0, -1, 0)], holes: [] }; },
     demo: () => [{ x: 0, y: -0.62, a: 0.02, hue: 228 }, { x: 0.05, y: 0.6, a: -1.3, hue: 8 }] },
-  { id: 'triangle', name: 'Треугольник',
+  { id: 'triangle', name: 'Треугольник', caption: 'Здесь есть путь, который замыкается за три отражения.',
     note: '<b>Многоугольник.</b> В остроугольном треугольнике есть периодическая орбита Фаньяно — треугольник из оснований высот, самый короткий вписанный. Синий шар идёт по ней.',
     build: () => ({ outer: poly(TRI), holes: [] }),
     demo: () => {
@@ -399,12 +461,16 @@ const TABLES = [
       const m = [(fc[0] + fa[0]) / 2, (fc[1] + fa[1]) / 2];
       return [{ x: m[0], y: m[1], a: Math.atan2(fa[1] - fc[1], fa[0] - fc[0]), hue: 228 }, { x: -0.3, y: 0.4, a: 2.2, hue: 8 }];
     } },
-  { id: 'lorentz', name: 'Газ Лоренца',
+  { id: 'lorentz', name: 'Газ Лоренца', caption: 'Луч блуждает между зеркалами, как электрон в металле.',
     note: '<b>Диффузия.</b> Прямоугольник с решёткой круглых рассеивателей — модель Лоренца для электронов в металле. Траектория похожа на случайное блуждание.',
     build: () => ({ outer: poly([[-1.6, -1], [1.6, -1], [1.6, 1], [-1.6, 1]]),
       holes: [circ(-0.8, -0.5, 0.27), circ(0.8, -0.5, 0.27), circ(0, 0, 0.27), circ(-0.8, 0.5, 0.27), circ(0.8, 0.5, 0.27)] }),
     demo: () => [{ x: -1.3, y: 0, a: 0.2, hue: 228 }, { x: -1.3, y: 0, a: 0.2 + 1e-6, hue: 8 }], twin: true },
-  { id: 'custom', name: 'Свой',
+  { id: 'penrose', name: 'Комната Пенроуза', caption: 'В этой комнате есть угол, куда свет никогда не попадёт.',
+    note: '<b>Неосвещаемая комната.</b> Верх и низ — половинки эллипсов, острия стоят ровно в их фокусах. Луч из нижней половины, прошедший мимо отрезка между фокусами, никогда не попадёт наверх (золотой). Синий проходит между фокусами и освещает всё.',
+    build: penroseRoom,
+    demo: () => [{ x: 1.2, y: PR.h + 0.3, a: Math.atan2(-0.6, PR.c + 0.4 - 1.2), hue: 38 }, { x: -0.2, y: PR.h + 0.9, a: -1.2, hue: 228 }] },
+  { id: 'custom', name: 'Свой', caption: 'Ваша комната. Что сделает луч?',
     note: '<b>Свой стол.</b> Выберите «Рисовать» и ставьте вершины касаниями, затем «Замкнуть». Пока здесь L-образный стол — рациональный многоугольник, у которого все углы кратны π/2.',
     build: () => ({ outer: poly(customPts), holes: [] }), demo: () => null, noRotate: true },
 ];
@@ -420,15 +486,20 @@ let table = TABLES[0], geo = null, rotated = false;
 let balls = [], phaseQ = [], bounces = 0, pair = null;
 let paused = false, tool = 'launch', beam = 1, trailMode = 'keep';
 let speed = 3, spreadDeg = 0.01;
+let mode = 'sandbox', raySpeed = 'normal', lastRay = null, rayOrigin = null, rayLost = false, capT = 0, phaseWas = false, rayVisited = false;
+const RAY_SPEED = { slow: 0.3, normal: 0.75, fast: 2.5, turbo: 16 }; // table sizes per second
+// glow passes for the laser: [line width px, alpha]
+const RAY_PASSES = [[24, 0.016], [8, 0.04], [3, 0.1], [1.1, 0.75]];
+const app = $('#app');
 let drag = null, drawPts = [];
 let tok = {};
 let hueIx = 0;
 const HUES = [228, 8, 165, 278, 40, 330, 195, 100];
 
 function readTokens() {
-  const cs = getComputedStyle(document.documentElement), g = n => cs.getPropertyValue(n).trim();
+  const cs = getComputedStyle(app), g = n => cs.getPropertyValue(n).trim();
   tok = { bg: g('--bg'), paper: g('--paper'), grid: g('--grid'), ink: g('--ink'), muted: g('--muted'), line: g('--line'),
-    accent: g('--accent'), s: g('--ball-s'), l: g('--ball-l'), op: g('--trail-op') || 'source-over' };
+    accent: g('--accent'), s: g('--ball-s'), l: g('--ball-l'), op: g('--trail-op') || 'source-over', ray: g('--ray') };
 }
 const ink = (h, a = 1) => `hsla(${h} ${tok.s} ${tok.l} / ${a})`;
 
@@ -458,6 +529,8 @@ function setTable(id, keepDemo = true) {
   geo = rotated ? { outer: g.outer.map(rotPiece), holes: g.holes.map(rotPiece) } : g;
   finalize(geo);
   for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', String(c.dataset.id === table.id));
+  const cur = document.querySelector(`.chip[data-id="${table.id}"]`);
+  if (cur) cur.parentElement.scrollTo({ left: cur.offsetLeft - cur.parentElement.offsetLeft - 24, behavior: 'smooth' });
   $('#note').innerHTML = table.note;
   balls = []; pair = null; bounces = 0; hueIx = 0;
   view = fitView();
@@ -465,6 +538,7 @@ function setTable(id, keepDemo = true) {
   if (keepDemo) runDemo();
 }
 function runDemo() {
+  if (mode === 'ray') { rayDemo(); return; }
   let seeds = table.demo();
   if (!seeds) { addRandom(2); return; }
   if (rotated) seeds = seeds.map(rotSeed);
@@ -472,6 +546,37 @@ function runDemo() {
   for (const s of seeds) if (inside(s.x, s.y)) made.push(addBall(s.x, s.y, s.a, s.hue));
   if (table.twin && made.length === 2) pair = made;
   hueIx = seeds.length;
+}
+
+/* ---------- ray mode ---------- */
+function rayDemo() {
+  let seeds = table.demo();
+  if (seeds && rotated) seeds = seeds.map(rotSeed);
+  const s = seeds && seeds.find(q => inside(q.x, q.y));
+  if (s) { launchRay(s.x, s.y, s.a); return; }
+  const p = randomInside(); if (p) launchRay(p[0], p[1], Math.random() * TAU);
+}
+function launchRay(x, y, a) {
+  balls = []; pair = null; bounces = 0; rayLost = false;
+  clearTrails();
+  addBall(x, y, a, 38);
+  rayOrigin = [x, y]; lastRay = { x, y, a, id: table.id };
+  const c = $('#caption');
+  c.textContent = table.caption || ''; c.classList.remove('gone');
+  clearTimeout(capT); capT = setTimeout(() => c.classList.add('gone'), 3200);
+}
+function setMode(m) {
+  if (m === mode) return;
+  mode = m; app.dataset.mode = m;
+  for (const b of document.querySelectorAll('#modes button')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+  $('#sheet').hidden = true; $('#bSettings').setAttribute('aria-expanded', 'false');
+  setTool('launch');
+  if (m === 'ray') { phaseWas = phaseOn; setPhase(false); }
+  else if (phaseWas) setPhase(true);
+  readTokens();
+  const id = m === 'ray' && !rayVisited ? 'penrose' : table.id;
+  if (m === 'ray') rayVisited = true;
+  setTable(id);
 }
 
 /* ---------- balls ---------- */
@@ -515,14 +620,21 @@ function addRandom(n) {
 }
 
 /* ---------- simulation ---------- */
+const PTS = [];
+function strokePts(col) {
+  tr.beginPath(); tr.moveTo(PTS[0], PTS[1]);
+  for (let i = 2; i < PTS.length; i += 2) tr.lineTo(PTS[i], PTS[i + 1]);
+  if (mode !== 'ray') { tr.strokeStyle = col; tr.stroke(); return; }
+  tr.strokeStyle = `rgb(${tok.ray})`;
+  for (const [w, a] of RAY_PASSES) { tr.lineWidth = w; tr.globalAlpha = a; tr.stroke(); }
+}
 function advance(b, dist) {
-  tr.strokeStyle = b.col;
-  tr.beginPath(); tr.moveTo(sx(b.x), sy(b.y));
+  PTS.length = 0; PTS.push(sx(b.x), sy(b.y));
   let n = 0;
   while (b.alive && dist >= b.rem && n < MAX_BOUNCES) {
     dist -= b.rem;
     b.x = b.hx; b.y = b.hy;
-    tr.lineTo(sx(b.x), sy(b.y));
+    PTS.push(sx(b.x), sy(b.y));
     const h = b.h, [nx, ny, tx, ty, s] = surface(h.p, h.u);
     const dn = b.dx * nx + b.dy * ny;
     let dx = b.dx - 2 * dn * nx, dy = b.dy - 2 * dn * ny;
@@ -535,12 +647,12 @@ function advance(b, dist) {
   }
   if (b.alive && n < MAX_BOUNCES) {
     b.x += b.dx * dist; b.y += b.dy * dist; b.rem -= dist;
-    tr.lineTo(sx(b.x), sy(b.y));
+    PTS.push(sx(b.x), sy(b.y));
   }
-  tr.stroke();
+  strokePts(b.col);
 }
 function step(dt) {
-  if (trailMode === 'fade') {
+  if (trailMode === 'fade' && mode !== 'ray') {
     tr.globalCompositeOperation = 'destination-out';
     tr.fillStyle = `rgba(0,0,0,${1 - Math.pow(0.93, dt * 60)})`;
     tr.fillRect(0, 0, W, H);
@@ -549,11 +661,13 @@ function step(dt) {
   const n = Math.max(1, balls.length);
   tr.globalAlpha = trailMode === 'fade' ? 0.9 : Math.max(0.05, Math.min(0.7, 0.75 / Math.sqrt(n)));
   tr.lineWidth = 1.1; tr.lineJoin = 'round';
-  const d = speed * dt;
+  const bb = geo.bbox;
+  const d = (mode === 'ray' ? RAY_SPEED[raySpeed] * Math.max(bb.x1 - bb.x0, bb.y1 - bb.y0) : speed) * dt;
   for (const b of balls) if (b.alive) advance(b, d);
   tr.globalAlpha = 1; tr.globalCompositeOperation = 'source-over';
   if (balls.some(b => !b.alive)) balls = balls.filter(b => b.alive);
   if (pair && !(pair[0].alive && pair[1].alive)) pair = null;
+  if (mode === 'ray' && lastRay && !balls.length && !rayLost) { rayLost = true; toast('Луч попал точно в угол. Нажмите «Заново» или коснитесь стола'); }
   flushPhase();
 }
 
@@ -565,11 +679,12 @@ function tracePath(c, pieces, k, ox, oy) {
       if (first) c.moveTo(ox + p.ax * k, oy + p.ay * k);
       c.lineTo(ox + p.bx * k, oy + p.by * k);
     } else if (p.t === 'arc') {
-      if (first) c.moveTo(ox + (p.cx + p.r * Math.cos(p.a0)) * k, oy + (p.cy + p.r * Math.sin(p.a0)) * k);
-      c.arc(ox + p.cx * k, oy + p.cy * k, p.r * k, p.a0, p.a1);
+      const from = p.rev ? p.a1 : p.a0, to = p.rev ? p.a0 : p.a1;
+      if (first) c.moveTo(ox + (p.cx + p.r * Math.cos(from)) * k, oy + (p.cy + p.r * Math.sin(from)) * k);
+      c.arc(ox + p.cx * k, oy + p.cy * k, p.r * k, from, to, !!p.rev);
     } else {
-      c.moveTo(ox + (p.cx + p.a) * k, oy + p.cy * k);
-      c.ellipse(ox + p.cx * k, oy + p.cy * k, p.a * k, p.b * k, 0, 0, TAU);
+      if (first || p.a1 - p.a0 >= TAU) c.moveTo(ox + (p.cx + p.a * Math.cos(p.a0)) * k, oy + (p.cy + p.b * Math.sin(p.a0)) * k);
+      c.ellipse(ox + p.cx * k, oy + p.cy * k, p.a * k, p.b * k, 0, p.a0, p.a1);
     }
     first = false;
   }
@@ -593,7 +708,7 @@ function drawBg() {
   bg.stroke();
   bg.restore();
   // foci of ellipses
-  for (const p of geo.outer) if (p.t === 'ell') {
+  if (mode !== 'ray') for (const p of geo.outer) if (p.t === 'ell' && p.a1 - p.a0 >= TAU) {
     const c = Math.sqrt(Math.abs(p.a * p.a - p.b * p.b)), along = p.a >= p.b;
     for (const s of [-1, 1]) {
       const X = sx(p.cx + (along ? s * c : 0)), Y = sy(p.cy + (along ? 0 : s * c));
@@ -609,7 +724,12 @@ function render() {
   ctx.drawImage(bgC, 0, 0);
   ctx.drawImage(trC, 0, 0);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  regionPath(ctx); ctx.strokeStyle = tok.line; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  regionPath(ctx); ctx.strokeStyle = tok.line; ctx.lineJoin = 'round';
+  if (mode === 'ray') {
+    ctx.lineWidth = 4; ctx.stroke(); ctx.lineWidth = 1.3; ctx.strokeStyle = '#4a4741'; ctx.stroke();
+    renderRay(); return;
+  }
+  ctx.lineWidth = 2; ctx.stroke();
   const r = balls.length > 120 ? 2 : 3.5;
   for (const b of balls) {
     ctx.beginPath(); ctx.arc(sx(b.x), sy(b.y), r, 0, TAU);
@@ -628,11 +748,26 @@ function render() {
     drawPts.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(sx(x), sy(y), i ? 3.5 : 7, 0, TAU); ctx.fillStyle = i ? tok.accent : 'transparent'; ctx.fill(); if (!i) { ctx.strokeStyle = tok.accent; ctx.stroke(); } });
   }
 }
+function renderRay() {
+  if (rayOrigin) {
+    ctx.beginPath(); ctx.arc(sx(rayOrigin[0]), sy(rayOrigin[1]), 3, 0, TAU);
+    ctx.strokeStyle = `rgba(${tok.ray},.8)`; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of balls) {
+    const X = sx(b.x), Y = sy(b.y), g = ctx.createRadialGradient(X, Y, 0, X, Y, 22);
+    g.addColorStop(0, `rgba(${tok.ray},.9)`); g.addColorStop(0.25, `rgba(${tok.ray},.35)`); g.addColorStop(1, `rgba(${tok.ray},0)`);
+    ctx.fillStyle = g; ctx.fillRect(X - 22, Y - 22, 44, 44);
+    ctx.beginPath(); ctx.arc(X, Y, 2.2, 0, TAU); ctx.fillStyle = '#fff6e6'; ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  if (drag && drag.kind === 'launch' && drag.moved) drawAim();
+}
 function drawAim() {
   const X0 = drag.X0, Y0 = drag.Y0, a = Math.atan2(drag.Y - Y0, drag.X - X0);
-  const spread = beam > 1 ? spreadDeg * Math.PI / 180 : 0;
+  const spread = beam > 1 && mode !== 'ray' ? spreadDeg * Math.PI / 180 : 0;
   ctx.strokeStyle = tok.accent; ctx.lineWidth = 1.5;
-  for (const f of beam > 1 ? [-0.5, 0.5] : [0]) {
+  for (const f of spread ? [-0.5, 0.5] : [0]) {
     const aa = a + f * spread, h = nearest(wx(X0), wy(Y0), Math.cos(aa), Math.sin(aa), null);
     if (!h) continue;
     ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(X0, Y0);
@@ -748,7 +883,7 @@ function endDrag(e) {
   const [X, Y] = rel(e);
   if (d.kind === 'launch') {
     const a = d.moved ? Math.atan2(d.Y - d.Y0, d.X - d.X0) : Math.random() * TAU;
-    launch(wx(d.X0), wy(d.Y0), a);
+    if (mode === 'ray') launchRay(wx(d.X0), wy(d.Y0), a); else launch(wx(d.X0), wy(d.Y0), a);
   } else if (d.kind === 'remove') {
     if (Math.hypot(X - d.X0, Y - d.Y0) < 10) { geo.holes.splice(d.hi, 1); geometryChanged(); toast('Препятствие убрано'); }
   } else if (d.kind === 'obs') {
@@ -836,6 +971,11 @@ function segGroup(sel, cb) {
 }
 segGroup('#beam', v => { beam = +v; });
 segGroup('#trail', v => { trailMode = v; });
+segGroup('#rspeed', v => { raySpeed = v; });
+document.querySelectorAll('#modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('#bAgain').addEventListener('click', () => {
+  if (lastRay && lastRay.id === table.id) launchRay(lastRay.x, lastRay.y, lastRay.a); else rayDemo();
+});
 
 document.addEventListener('keydown', e => {
   if (e.target.closest('input')) return;
@@ -848,6 +988,7 @@ function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = fal
 const nf = new Intl.NumberFormat('ru-RU');
 let hudT = 0;
 function hud(now) {
+  if (mode === 'ray') { $('#rcount').textContent = String(bounces).padStart(4, '0'); return; }
   if (now - hudT < 200) return; hudT = now;
   let s = `<span>шаров <b>${balls.length}</b></span><span>отражений <b>${nf.format(bounces)}</b></span>`;
   if (pair) { const d = Math.hypot(pair[0].x - pair[1].x, pair[0].y - pair[1].y); s += `<span>Δ близнецов <b>${d < 1e-3 ? d.toExponential(1) : d.toFixed(3)}</b></span>`; }
@@ -867,6 +1008,7 @@ readTokens();
 resize();
 setTable('ellipse');
 if (window.innerWidth >= 900) setPhase(true);
+if (location.hash === '#ray') setMode('ray');
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
