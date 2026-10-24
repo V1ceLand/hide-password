@@ -1,0 +1,1279 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e7ebf1">
+<title>Математический бильярд</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@1,500;1,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen instrument — header with table tabs, graph-paper stage (+ phase portrait side/bottom panel), tool dock */
+:root{
+  --bg:#e7ebf1; --paper:#fbfcfe; --grid:rgba(39,71,201,.075); --ink:#17202e; --muted:#58657a;
+  --line:#17202e; --accent:#2747c9; --on-accent:#ffffff; --rule:rgba(23,32,46,.14); --panel:rgba(251,252,254,.94);
+  --ball-s:80%; --ball-l:43%; --trail-op:multiply;
+  --f-display:"Spectral", Georgia, "Times New Roman", serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --ray:255,184,92;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c121c; --paper:#121a27; --grid:rgba(138,162,255,.07); --ink:#e1e6ef; --muted:#8c98ae;
+    --line:#c7d0e2; --accent:#8ea5ff; --on-accent:#0c121c; --rule:rgba(225,230,239,.14); --panel:rgba(18,26,39,.94);
+    --ball-s:88%; --ball-l:66%; --trail-op:lighter; color-scheme:dark;
+  }
+}
+/* Ray mode commits to one cinematic look: black room, brushed-steel walls, golden laser */
+.app[data-mode="ray"]{
+  --bg:#141519; --paper:#040405; --grid:transparent; --ink:#ebe6dc; --muted:#8b867d;
+  --line:#d6d0c4; --accent:#f2b45c; --on-accent:#141519; --rule:rgba(235,230,220,.13); --panel:rgba(20,21,25,.94);
+  --trail-op:lighter; color-scheme:dark;
+}
+:root[data-theme="dark"]{
+  --bg:#0c121c; --paper:#121a27; --grid:rgba(138,162,255,.07); --ink:#e1e6ef; --muted:#8c98ae;
+  --line:#c7d0e2; --accent:#8ea5ff; --on-accent:#0c121c; --rule:rgba(225,230,239,.14); --panel:rgba(18,26,39,.94);
+  --ball-s:88%; --ball-l:66%; --trail-op:lighter; color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+.top,.stage,.dock{min-width:0}
+.app{background:var(--bg);color:var(--ink)}
+body:has(.app[data-mode="ray"]){background:#141519}
+.app[data-mode="ray"] .sandbox-only,.app:not([data-mode="ray"]) .ray-only{display:none!important}
+
+/* header */
+.top{display:flex;flex-direction:column;gap:8px;padding-block:10px 8px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  border-bottom:1px solid var(--rule)}
+.titlerow{display:flex;align-items:center;justify-content:space-between;gap:8px 18px;flex-wrap:wrap}
+.modes button{padding:5px 12px;font-size:.82rem}
+h1{margin:0;font-family:var(--f-display);font-style:italic;font-weight:600;font-size:1.45rem;line-height:1.1;letter-spacing:-.01em;text-wrap:balance}
+h1 span{color:var(--accent)}
+.tables{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-4px;padding:2px 4px}
+.tables::-webkit-scrollbar{display:none}
+@media (min-width:900px){.tables{flex-wrap:wrap;overflow:visible}}
+.chip{flex:none;border:1px solid var(--rule);background:transparent;border-radius:3px;padding:5px 11px;font-size:.84rem;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.note{margin:0;font-size:.82rem;line-height:1.4;color:var(--muted);max-width:78ch;cursor:pointer;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.note.open{-webkit-line-clamp:unset;display:block}
+.note b{color:var(--ink);font-weight:600}
+
+/* stage */
+.stage{position:relative;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);min-height:0}
+.stage.with-phase{grid-template-columns:minmax(0,1fr) minmax(240px,30%)}
+@media (max-aspect-ratio:1/1){
+  .stage.with-phase{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(150px,30%)}
+}
+.board{position:relative;min-width:0;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block;cursor:crosshair}
+.hud{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:10px;font-size:.74rem;color:var(--muted);
+  pointer-events:none;display:flex;gap:4px 14px;flex-wrap:wrap;max-width:calc(100% - 24px)}
+.hud b{color:var(--ink);font-weight:500}
+.drawbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:6px 6px 6px 12px;font-size:.82rem;
+  max-width:calc(100% - 24px);box-shadow:0 6px 24px rgba(0,0,0,.08)}
+.drawbar span{color:var(--muted)}
+.raytop{position:absolute;top:12px;left:max(14px,env(safe-area-inset-left,0px));right:max(14px,env(safe-area-inset-right,0px));
+  display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;font-size:.7rem;letter-spacing:.08em;color:var(--ink)}
+.rcount{display:grid;justify-items:end;gap:2px}
+.rcount small{font-size:.62rem;color:var(--muted);letter-spacing:.1em}
+.rcount b{font-size:1.15rem;font-weight:500;letter-spacing:.04em}
+.caption{position:absolute;left:50%;top:16%;transform:translateX(-50%);width:min(30ch,calc(100% - 48px));margin:0;text-align:center;
+  font-size:clamp(1rem,3.6vw,1.35rem);line-height:1.35;color:#f4efe6;text-shadow:0 0 18px rgba(0,0,0,.9);pointer-events:none;
+  transition:opacity 1.2s ease;text-wrap:balance}
+.caption.gone{opacity:0}
+.rhint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);margin:0;font-size:.74rem;color:var(--muted);
+  white-space:nowrap;pointer-events:none;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
+.toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  border-radius:4px;padding:7px 12px;font-size:.82rem;max-width:calc(100% - 24px);pointer-events:none}
+
+.phase{display:flex;flex-direction:column;min-width:0;min-height:0;border-left:1px solid var(--rule);background:var(--paper);
+  padding:10px max(12px,env(safe-area-inset-right,0px)) 10px 12px;gap:6px}
+@media (max-aspect-ratio:1/1){
+  .phase{border-left:0;border-top:1px solid var(--rule);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+}
+.phase-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.phase-head .mono{font-size:.72rem;color:var(--muted)}
+.plot{position:relative;flex:1;min-height:0;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:2px 6px}
+.plot .yax{display:flex;flex-direction:column;justify-content:space-between;font-size:.66rem;color:var(--muted);text-align:right}
+.plot .xax{grid-column:2;display:flex;justify-content:space-between;font-size:.66rem;color:var(--muted)}
+.pwrap{position:relative;min-height:0;border:1px solid var(--rule)}
+#pc{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* dock */
+.dock{position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;
+  padding-block:8px 10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  border-top:1px solid var(--rule);background:var(--bg)}
+.seg{display:flex;border:1px solid var(--rule);border-radius:5px;overflow:hidden}
+.seg button{border:0;background:transparent;padding:7px 12px;font-size:.84rem;cursor:pointer;border-left:1px solid var(--rule)}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--rule);background:transparent;border-radius:5px;padding:7px 11px;font-size:.84rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover,.seg button:hover{border-color:var(--muted)}
+.btn[aria-pressed="true"],.btn[aria-expanded="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn svg{width:14px;height:14px;flex:none}
+@media (max-width:520px){.btn .t{display:none}.btn{padding:7px 10px}.seg button{padding:7px 10px}.dock{justify-content:center}}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.sheet{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(100% + 8px);width:min(340px,calc(100% - 32px));
+  background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:14px;display:grid;gap:14px;
+  box-shadow:0 12px 40px rgba(0,0,0,.14);z-index:5}
+.field{display:grid;gap:6px}
+.field .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.field .val{font-size:.76rem;color:var(--muted)}
+.field label,.field .name{font-size:.82rem;font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg.small button{padding:5px 10px;font-size:.8rem;flex:1}
+.seg.small{width:100%}
+.hint{font-size:.76rem;color:var(--muted);line-height:1.4;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}*,*::before,*::after{box-sizing:border-box}body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="titlerow">
+      <h1>Математический <span>бильярд</span></h1>
+      <div class="seg modes" id="modes" role="group" aria-label="Режим">
+        <button type="button" data-mode="sandbox" aria-pressed="true">Песочница</button>
+        <button type="button" data-mode="ray" aria-pressed="false">Луч</button>
+      </div>
+    </div>
+    <nav class="tables" id="tables" aria-label="Форма стола"></nav>
+    <p class="note sandbox-only" id="note" title="Нажмите, чтобы развернуть"></p>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="board" id="board">
+      <canvas id="cv" aria-label="Бильярдный стол"></canvas>
+      <div class="hud mono sandbox-only" id="hud"></div>
+      <div class="raytop mono ray-only"><span>ИДЕАЛЬНЫЕ ЗЕРКАЛА</span><span class="rcount"><small>ОТРАЖЕНИЙ</small><b id="rcount">0000</b></span></div>
+      <p class="caption mono ray-only" id="caption"></p>
+      <p class="rhint ray-only">Коснитесь стола — новый луч. Потяните — задайте направление.</p>
+      <div class="drawbar" id="drawbar" hidden>
+        <span id="drawMsg">Касайтесь — ставьте вершины</span>
+        <button class="btn" id="drawClose" type="button">Замкнуть</button>
+        <button class="btn" id="drawReset" type="button">Сбросить</button>
+      </div>
+      <div class="toast" id="toast" hidden></div>
+    </div>
+    <section class="phase" id="phase" hidden aria-label="Фазовый портрет">
+      <div class="phase-head">
+        <span class="lbl">Фазовый портрет Биркгофа</span>
+        <span class="mono">точка = одно отражение</span>
+      </div>
+      <div class="plot">
+        <div class="yax mono"><span>cos φ = +1</span><span>0</span><span>−1</span></div>
+        <div class="pwrap"><canvas id="pc"></canvas></div>
+        <div class="xax mono"><span>s = 0</span><span>длина дуги границы →</span><span>L</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <div class="seg sandbox-only" id="tools" role="group" aria-label="Инструмент">
+      <button type="button" data-tool="launch" aria-pressed="true">Запуск</button>
+      <button type="button" data-tool="obstacle" aria-pressed="false">Препятствие</button>
+      <button type="button" data-tool="draw" aria-pressed="false">Рисовать</button>
+    </div>
+    <div class="seg ray-only" id="rspeed" role="group" aria-label="Скорость луча">
+      <button type="button" data-v="slow" aria-pressed="false">Медленно</button>
+      <button type="button" data-v="normal" aria-pressed="true">Нормально</button>
+      <button type="button" data-v="fast" aria-pressed="false">Быстро</button>
+      <button type="button" data-v="turbo" aria-pressed="false">Турбо</button>
+    </div>
+    <div class="seg ray-only" id="rbeam" role="group" aria-label="Сколько лучей">
+      <button type="button" data-v="1" aria-pressed="true">1 луч</button>
+      <button type="button" data-v="64" aria-pressed="false">Веер ×64</button>
+    </div>
+    <div class="acts">
+      <button class="btn" id="bPause" type="button" aria-pressed="false" title="Пауза (пробел)" aria-label="Пауза">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/></svg><span class="t">Пауза</span></button>
+      <button class="btn" id="bSound" type="button" aria-pressed="true" aria-label="Звук" title="Звук отражений">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor" stroke="none"/><path id="sndWaves" d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9"/></svg><span class="t">Звук</span></button>
+ <button class="btn" id="bRev" type="button" aria-pressed="false" title="Развернуть время (R)">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path id="revIcon" d="M8 3v10L1 8zM15 3v10L8 8z"/></svg><span class="t" id="revLabel">Назад во времени</span></button>
+      <button class="btn ray-only" id="bAgain" type="button" title="Запустить тот же луч ещё раз">Заново</button>
+      <button class="btn sandbox-only" id="bRandom" type="button" title="Добавить 20 шаров в случайных точках">+20</button>
+      <button class="btn sandbox-only" id="bPhase" type="button" aria-pressed="false">Фазы</button>
+      <button class="btn sandbox-only" id="bClear" type="button">Очистить</button>
+      <button class="btn sandbox-only" id="bSettings" type="button" aria-expanded="false" aria-controls="sheet" aria-label="Настройки">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h7M12 4h2M2 12h2M7 12h7"/><circle cx="10.5" cy="4" r="1.6"/><circle cx="5.5" cy="12" r="1.6"/></svg><span class="t">Настройки</span></button>
+    </div>
+
+    <div class="sheet" id="sheet" hidden>
+      <div class="field">
+        <div class="row"><label for="speed">Скорость</label><span class="val mono" id="speedVal"></span></div>
+        <input type="range" id="speed" min="0" max="100" value="40">
+      </div>
+      <div class="field">
+        <div class="row"><span class="name">Лучей за запуск</span></div>
+        <div class="seg small" id="beam" role="group" aria-label="Лучей за запуск">
+          <button type="button" data-v="1" aria-pressed="true">1</button>
+          <button type="button" data-v="2" aria-pressed="false">2 близнеца</button>
+          <button type="button" data-v="16" aria-pressed="false">16</button>
+          <button type="button" data-v="64" aria-pressed="false">64</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="row"><label for="spread">Разброс пучка</label><span class="val mono" id="spreadVal"></span></div>
+        <input type="range" id="spread" min="0" max="100" value="33">
+      </div>
+      <div class="field">
+        <div class="row"><span class="name">Следы</span></div>
+        <div class="seg small" id="trail" role="group" aria-label="Следы">
+          <button type="button" data-v="keep" aria-pressed="true">Копить</button>
+          <button type="button" data-v="fade" aria-pressed="false">Гаснуть</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="row"><span class="name">Разворот времени</span></div>
+        <div class="seg small" id="revmode" role="group" aria-label="Разворот времени">
+          <button type="button" data-v="replay" aria-pressed="true">По записи</button>
+          <button type="button" data-v="honest" aria-pressed="false">Честная физика</button>
+        </div>
+        <p class="hint">«По записи» точно отматывает пройденный путь. «Честная физика» разворачивает скорости и считает заново: в хаосе ошибки округления растут экспоненциально, и после долгого хаоса лучи уже не соберутся.</p>
+      </div>
+      <div class="field">
+        <button class="btn" id="bWipe" type="button">Стереть следы, шары оставить</button>
+      </div>
+      <p class="hint">Запуск: потяните от точки внутри стола — это направление. Короткое касание запускает шар в случайную сторону. Препятствие: тяните, чтобы задать радиус; касание по кругу удаляет его. Пробел — пауза.</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const TAU = Math.PI * 2, EPS = 1e-7, MAX_BALLS = 600, MAX_BOUNCES = 400;
+const $ = s => document.querySelector(s);
+
+/* ---------- boundary pieces ---------- */
+const seg = (ax, ay, bx, by) => ({ t: 'seg', ax, ay, bx, by });
+const arc = (cx, cy, r, a0, a1) => ({ t: 'arc', cx, cy, r, a0, a1 });
+const ell = (cx, cy, a, b, a0 = 0, a1 = TAU) => ({ t: 'ell', cx, cy, a, b, a0, a1 });
+const circ = (cx, cy, r) => arc(cx, cy, r, 0, TAU);
+function poly(pts) {
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i], q = pts[(i + 1) % pts.length];
+    out.push(seg(p[0], p[1], q[0], q[1]));
+  }
+  return out;
+}
+// rotate by +90°: (x, y) -> (-y, x)
+function rotPiece(p) {
+  if (p.t === 'seg') return seg(-p.ay, p.ax, -p.by, p.bx);
+  if (p.t === 'arc') return { ...arc(-p.cy, p.cx, p.r, p.a0 + Math.PI / 2, p.a1 + Math.PI / 2), rev: p.rev };
+  return ell(-p.cy, p.cx, p.b, p.a, p.a0 + Math.PI / 2, p.a1 + Math.PI / 2);
+}
+const rotSeed = s => ({ x: -s.y, y: s.x, a: s.a + Math.PI / 2, hue: s.hue });
+
+function ellPrep(p) {
+  const N = 720, cum = new Float64Array(N + 1), span = p.a1 - p.a0;
+  const sp = th => Math.hypot(p.a * Math.sin(th), p.b * Math.cos(th));
+  let s = 0, prev = sp(p.a0);
+  for (let i = 1; i <= N; i++) {
+    const cur = sp(p.a0 + i / N * span);
+    s += (prev + cur) / 2 * span / N; cum[i] = s; prev = cur;
+  }
+  p.cum = cum; p.N = N; p.len = s;
+}
+function ellS(p, th) {
+  const off = (((th - p.a0) % TAU) + TAU) % TAU;
+  const f = Math.min(p.N, off / (p.a1 - p.a0) * p.N), i = Math.min(p.N - 1, f | 0);
+  return p.cum[i] + (p.cum[i + 1] - p.cum[i]) * (f - i);
+}
+function finalize(geo) {
+  geo.pieces = [...geo.outer, ...geo.holes];
+  let s = 0;
+  for (const p of geo.pieces) {
+    if (p.t === 'seg') p.len = Math.hypot(p.bx - p.ax, p.by - p.ay);
+    else if (p.t === 'arc') p.len = p.r * (p.a1 - p.a0);
+    else ellPrep(p);
+    p.s0 = s; s += p.len;
+  }
+  geo.total = s;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of geo.outer) for (const [x, y] of samplePiece(p, 48)) {
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  geo.bbox = { x0, y0, x1, y1 };
+}
+function samplePiece(p, n) {
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    if (p.t === 'seg') out.push([p.ax + (p.bx - p.ax) * f, p.ay + (p.by - p.ay) * f]);
+    else if (p.t === 'arc') { const a = p.a0 + (p.a1 - p.a0) * f; out.push([p.cx + p.r * Math.cos(a), p.cy + p.r * Math.sin(a)]); }
+    else { const a = p.a0 + (p.a1 - p.a0) * f; out.push([p.cx + p.a * Math.cos(a), p.cy + p.b * Math.sin(a)]); }
+  }
+  return out;
+}
+
+/* ---------- ray casting ---------- */
+let HU = 0; // boundary parameter of the last accepted hit
+function arcOk(p, t, px, py, dx, dy) {
+  const x = px + dx * t - p.cx, y = py + dy * t - p.cy;
+  let off = Math.atan2(y, x) - p.a0;
+  off = ((off % TAU) + TAU) % TAU;
+  if (off <= p.a1 - p.a0 + 1e-9) { HU = off; return true; }
+  return false;
+}
+function ellOk(p, x, y) {
+  const th = Math.atan2(y, x);
+  if (p.a1 - p.a0 < TAU) {
+    const off = (((th - p.a0) % TAU) + TAU) % TAU;
+    if (off > p.a1 - p.a0 + 1e-9) return false;
+  }
+  HU = th; return true;
+}
+function hitT(p, px, py, dx, dy) {
+  if (p.t === 'seg') {
+    const ex = p.bx - p.ax, ey = p.by - p.ay, den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-14) return Infinity;
+    const qx = p.ax - px, qy = p.ay - py;
+    const t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    if (t > EPS && u >= -1e-12 && u <= 1 + 1e-12) { HU = u; return t; }
+    return Infinity;
+  }
+  if (p.t === 'arc') {
+    const fx = px - p.cx, fy = py - p.cy, b = fx * dx + fy * dy, c = fx * fx + fy * fy - p.r * p.r, D = b * b - c;
+    if (D < 0) return Infinity;
+    const sq = Math.sqrt(D), t1 = -b - sq, t2 = -b + sq;
+    if (t1 > EPS && arcOk(p, t1, px, py, dx, dy)) return t1;
+    if (t2 > EPS && arcOk(p, t2, px, py, dx, dy)) return t2;
+    return Infinity;
+  }
+  const X = (px - p.cx) / p.a, Y = (py - p.cy) / p.b, DX = dx / p.a, DY = dy / p.b;
+  const A = DX * DX + DY * DY, B = X * DX + Y * DY, C = X * X + Y * Y - 1, D = B * B - A * C;
+  if (D < 0) return Infinity;
+  const sq = Math.sqrt(D), t1 = (-B - sq) / A, t2 = (-B + sq) / A;
+  if (t1 > EPS && ellOk(p, X + DX * t1, Y + DY * t1)) return t1;
+  if (t2 > EPS && ellOk(p, X + DX * t2, Y + DY * t2)) return t2;
+  return Infinity;
+}
+function crossings(p, px, py, dx, dy) {
+  if (p.t === 'seg') {
+    const ex = p.bx - p.ax, ey = p.by - p.ay, den = dx * ey - dy * ex;
+    if (Math.abs(den) < 1e-14) return 0;
+    const qx = p.ax - px, qy = p.ay - py;
+    const t = (qx * ey - qy * ex) / den, u = (qx * dy - qy * dx) / den;
+    return (t > 0 && u >= 0 && u < 1) ? 1 : 0;
+  }
+  if (p.t === 'arc') {
+    const fx = px - p.cx, fy = py - p.cy, b = fx * dx + fy * dy, c = fx * fx + fy * fy - p.r * p.r, D = b * b - c;
+    if (D <= 0) return 0;
+    const sq = Math.sqrt(D);
+    return ((-b - sq > 0 && arcOk(p, -b - sq, px, py, dx, dy)) ? 1 : 0) + ((-b + sq > 0 && arcOk(p, -b + sq, px, py, dx, dy)) ? 1 : 0);
+  }
+  const X = (px - p.cx) / p.a, Y = (py - p.cy) / p.b, DX = dx / p.a, DY = dy / p.b;
+  const A = DX * DX + DY * DY, B = X * DX + Y * DY, C = X * X + Y * Y - 1, D = B * B - A * C;
+  if (D <= 0) return 0;
+  const sq = Math.sqrt(D);
+  const t1 = (-B - sq) / A, t2 = (-B + sq) / A;
+  return ((t1 > 0 && ellOk(p, X + DX * t1, Y + DY * t1)) ? 1 : 0) + ((t2 > 0 && ellOk(p, X + DX * t2, Y + DY * t2)) ? 1 : 0);
+}
+function inside(x, y) {
+  let n = 0;
+  for (const p of geo.pieces) n += crossings(p, x, y, 0.66031, 0.75099);
+  return (n & 1) === 1;
+}
+function nearest(px, py, dx, dy, skip) {
+  let best = Infinity, bp = null, bu = 0;
+  for (const p of geo.pieces) {
+    if (p === skip) continue;
+    const t = hitT(p, px, py, dx, dy);
+    if (t < best) { best = t; bp = p; bu = HU; }
+  }
+  return bp ? { t: best, p: bp, u: bu } : null;
+}
+// unit normal, unit tangent (direction of increasing s) and arclength s at a hit
+function surface(p, u) {
+  if (p.t === 'seg') {
+    const tx = (p.bx - p.ax) / p.len, ty = (p.by - p.ay) / p.len;
+    return [-ty, tx, tx, ty, p.s0 + u * p.len];
+  }
+  if (p.t === 'arc') {
+    const a = p.a0 + u, nx = Math.cos(a), ny = Math.sin(a);
+    return [nx, ny, -ny, nx, p.s0 + p.r * u];
+  }
+  const c = Math.cos(u), s = Math.sin(u);
+  let nx = c / p.a, ny = s / p.b; const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl;
+  let tx = -p.a * s, ty = p.b * c; const tl = Math.hypot(tx, ty); tx /= tl; ty /= tl;
+  return [nx, ny, tx, ty, p.s0 + ellS(p, u)];
+}
+
+/* ---------- tables ---------- */
+const lShape = [[-1.2, -1], [0, -1], [0, 0], [1.2, 0], [1.2, 1], [-1.2, 1]];
+let customPts = lShape, customDrawn = false;
+function foot(P, A, B) {
+  const ex = B[0] - A[0], ey = B[1] - A[1];
+  const u = ((P[0] - A[0]) * ex + (P[1] - A[1]) * ey) / (ex * ex + ey * ey);
+  return [A[0] + ex * u, A[1] + ey * u];
+}
+const TRI = [[-1.2, 0.8], [1.3, 0.8], [0.25, -0.95]];
+// circular wall from P to Q (contour runs clockwise on screen); depth > 0 bows into the table, < 0 bows outward
+function bow(P, Q, depth) {
+  const L = Math.hypot(Q[0] - P[0], Q[1] - P[1]);
+  const nx = -(Q[1] - P[1]) / L, ny = (Q[0] - P[0]) / L;
+  const R = (L * L / 4 + depth * depth) / (2 * Math.abs(depth));
+  const M = [(P[0] + Q[0]) / 2 + nx * depth, (P[1] + Q[1]) / 2 + ny * depth];
+  const sg = Math.sign(depth), cx = M[0] - sg * nx * R, cy = M[1] - sg * ny * R;
+  const ang = q => Math.atan2(q[1] - cy, q[0] - cx), mod = a => ((a % TAU) + TAU) % TAU;
+  const aP = ang(P), aQ = ang(Q), aM = ang(M);
+  if (mod(aM - aP) < mod(aQ - aP)) return arc(cx, cy, R, aP, aP + mod(aQ - aP));
+  return { ...arc(cx, cy, R, aQ, aQ + mod(aP - aQ)), rev: true };
+}
+const ngon = (n, r, rot = -Math.PI / 2) => Array.from({ length: n }, (_, k) => [r * Math.cos(rot + k * TAU / n), r * Math.sin(rot + k * TAU / n)]);
+const STAR = Array.from({ length: 10 }, (_, k) => { const r = k % 2 ? 0.45 : 1.1, a = -Math.PI / 2 + k * Math.PI / 5; return [r * Math.cos(a), r * Math.sin(a)]; });
+const SQ = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+// Penrose unilluminable room: two half-ellipses whose foci carry the tips of two spikes
+const PR = (() => {
+  const A = 2.4, B = 1.9, h = 1.54, w = 0.115, d = 0.27, c = Math.sqrt(A * A - B * B);
+  const R = (h * h + d * d) / (2 * d);
+  return { A, B, h, w, d, c, R, al: Math.asin(h / R) };
+})();
+function penroseRoom() {
+  const { A, B, h, w, d, c, R, al } = PR, P = Math.PI;
+  return { outer: [
+    ell(0, -h, A, B, P, TAU),
+    seg(A, -h, A, -w), seg(A, -w, c, -w), seg(c, -w, c, -h),
+    { ...arc(c - d + R, 0, R, P - al, P + al), rev: true },
+    seg(c, h, c, w), seg(c, w, A, w), seg(A, w, A, h),
+    ell(0, h, A, B, 0, P),
+    seg(-A, h, -A, w), seg(-A, w, -c, w), seg(-c, w, -c, h),
+    { ...arc(-c + d - R, 0, R, -al, al), rev: true },
+    seg(-c, -h, -c, -w), seg(-c, -w, -A, -w), seg(-A, -w, -A, -h),
+  ], holes: [] };
+}
+const TABLES = [
+  { id: 'ellipse', name: 'Эллипс', caption: 'Луч через один фокус всегда приходит во второй.',
+    note: '<b>Интегрируемый.</b> Каждая траектория касается каустики — софокусного эллипса или гиперболы. Луч через один фокус после отражения проходит через другой (фокусы отмечены крестиками).',
+    build: () => ({ outer: [ell(0, 0, 1.5, 1)], holes: [] }),
+    demo: () => [{ x: 0, y: 0, a: 0.42, hue: 228 }, { x: 0, y: 0.72, a: 0.12, hue: 8 }, { x: -Math.sqrt(1.25), y: 0, a: 1.2, hue: 165 }] },
+  { id: 'circle', name: 'Круг', caption: 'Угол отражения здесь не меняется никогда.',
+    note: '<b>Интегрируемый.</b> Угол отражения не меняется, поэтому траектория касается концентрической окружности. Угол, соизмеримый с π, даёт замкнутую орбиту — звёздный многоугольник.',
+    build: () => ({ outer: [circ(0, 0, 1)], holes: [] }),
+    demo: () => [{ x: 0.35, y: 0, a: 1.05, hue: 228 }, { x: -0.2, y: 0.1, a: 0.3, hue: 8 }] },
+  { id: 'ring', name: 'Кольцо', caption: 'Луч навсегда помнит, на каком расстоянии прошёл от центра.',
+    note: '<b>Интегрируемый.</b> Как и в круге, у луча сохраняется прицельное расстояние до центра. Если оно больше радиуса внутреннего зеркала, луч его не замечает; если меньше — бьётся о него всегда под одним и тем же углом.',
+    build: () => ({ outer: [circ(0, 0, 1.2)], holes: [circ(0, 0, 0.5)] }),
+    demo: () => [{ x: 0.85, y: 0, a: 1.9, hue: 228 }, { x: 0, y: -0.9, a: 1.2, hue: 8 }] },
+  { id: 'rect', name: 'Прямоугольник', caption: 'Наклон решает всё: путь замкнётся или заполнит комнату.',
+    note: '<b>Развёртка.</b> Отразите стол зеркально — траектория станет прямой на решётке. Рациональный наклон даёт периодическую орбиту, иррациональный равномерно заполняет стол.',
+    build: () => ({ outer: poly([[-1.3, -0.8], [1.3, -0.8], [1.3, 0.8], [-1.3, 0.8]]), holes: [] }),
+    demo: () => [{ x: -0.4, y: 0.1, a: Math.atan(1 / Math.SQRT2), hue: 228 }] },
+  { id: 'pentagon', name: 'Пятиугольник', caption: 'Луч либо замкнётся, либо побывает везде — третьего не дано.',
+    note: '<b>Бильярд Вича.</b> Правильные многоугольники подчиняются дихотомии Вича: в каждом направлении либо все траектории замкнуты, либо каждая равномерно заполняет стол.',
+    build: () => ({ outer: poly(ngon(5, 1.1)), holes: [] }),
+    demo: () => [{ x: -0.2, y: 0.1, a: 0.37, hue: 228 }, { x: 0.15, y: 0.25, a: 2.6, hue: 8 }] },
+  { id: 'star', name: 'Звезда', caption: 'Пять острых ловушек для света.',
+    note: '<b>Невыпуклый многоугольник.</b> Острые лучи звезды работают как ловушки: свет заходит в них, многократно отражается и выходит в неожиданную сторону.',
+    build: () => ({ outer: poly(STAR), holes: [] }),
+    demo: () => [{ x: 0, y: 0.05, a: 0.2, hue: 228 }, { x: 0.1, y: -0.1, a: 2.3, hue: 8 }] },
+  { id: 'stadium', name: 'Стадион', caption: 'Один луч рано или поздно побывает везде.',
+    note: '<b>Хаос.</b> Стадион Бунимовича: две полуокружности и отрезки. Система эргодична — два шара-близнеца с разницей направлений 10⁻⁶ рад быстро разлетаются (смотрите Δ внизу).',
+    build: () => { const L = 0.8, r = 0.8; return { outer: [arc(L, 0, r, -Math.PI / 2, Math.PI / 2), seg(L, r, -L, r), arc(-L, 0, r, Math.PI / 2, 1.5 * Math.PI), seg(-L, -r, L, -r)], holes: [] }; },
+    demo: () => [{ x: -0.3, y: 0.2, a: 0.7, hue: 228 }, { x: -0.3, y: 0.2, a: 0.7 + 1e-6, hue: 8 }], twin: true },
+  { id: 'sinai', name: 'Синай', caption: 'Круглое зеркало разбрасывает свет во все стороны.',
+    note: '<b>Рассеивающий.</b> Бильярд Синая: квадрат с круглым препятствием. Выпуклый рассеиватель разводит соседние лучи экспоненциально — это модель газа твёрдых шаров.',
+    build: () => ({ outer: poly([[-1, -1], [1, -1], [1, 1], [-1, 1]]), holes: [circ(0, 0, 0.42)] }),
+    demo: () => [{ x: -0.7, y: -0.6, a: 0.33, hue: 228 }, { x: -0.7, y: -0.6, a: 0.33 + 1e-6, hue: 8 }], twin: true },
+  { id: 'concave', name: 'Вогнутый квадрат', caption: 'Каждая стенка разбрасывает свет.', twin: true,
+    note: '<b>Рассеивающий.</b> Все четыре стенки выгнуты внутрь, как препятствие Синая. Такой бильярд хаотичен даже без препятствия в центре: близнецы разлетаются экспоненциально.',
+    build: () => ({ outer: SQ.map((P, i) => bow(P, SQ[(i + 1) % 4], 0.25)), holes: [] }),
+    demo: () => [{ x: -0.3, y: 0.2, a: 0.5, hue: 228 }, { x: -0.3, y: 0.2, a: 0.5 + 1e-6, hue: 8 }] },
+  { id: 'mushroom', name: 'Гриб', caption: 'В шляпке — порядок, в ножке — хаос.',
+    note: '<b>Смешанное фазовое пространство.</b> Гриб Бунимовича: траектории, которые никогда не заходят в ножку, регулярны (островки на фазовом портрете), остальные хаотичны.',
+    build: () => { const w = 0.3, h = 0.9; return { outer: [arc(0, 0, 1, Math.PI, TAU), seg(1, 0, w, 0), seg(w, 0, w, h), seg(w, h, -w, h), seg(-w, h, -w, 0), seg(-w, 0, -1, 0)], holes: [] }; },
+    demo: () => [{ x: 0, y: -0.62, a: 0.02, hue: 228 }, { x: 0.05, y: 0.6, a: -1.3, hue: 8 }] },
+  { id: 'lemon', name: 'Лимон', caption: 'Две плавные дуги и два острых кончика.',
+    note: '<b>Лимон.</b> Пересечение двух кругов. Гладкие дуги и острые углы дают смешанную динамику: островки порядка среди хаоса.',
+    build: () => ({ outer: [arc(0.5, 0, 1, 2 * Math.PI / 3, 4 * Math.PI / 3), arc(-0.5, 0, 1, -Math.PI / 3, Math.PI / 3)], holes: [] }),
+    demo: () => [{ x: -0.1, y: 0.2, a: 0.3, hue: 228 }, { x: 0.05, y: -0.4, a: 2.0, hue: 8 }] },
+  { id: 'cutcircle', name: 'Срезанный круг', caption: 'Один прямой срез — и круг теряет предсказуемость.',
+    note: '<b>Смешанный.</b> Отрежьте от круга сегмент — и интегрируемость пропадает: лучи вдоль дуги остаются регулярными, а отражения от среза порождают хаос. Срез точно по диаметру снова дал бы интегрируемый полукруг.',
+    build: () => { const y = Math.sqrt(0.75); return { outer: [arc(0, 0, 1, Math.PI / 3, 5 * Math.PI / 3), seg(0.5, -y, 0.5, y)], holes: [] }; },
+    demo: () => [{ x: -0.2, y: 0.1, a: 0.4, hue: 228 }, { x: -0.5, y: -0.6, a: 0.15, hue: 8 }] },
+  { id: 'shiftring', name: 'Смещённое кольцо', caption: 'Сдвиньте зеркало — и порядок сменится хаосом.',
+    note: '<b>Смешанный.</b> Стоит сдвинуть внутренний круг — и появляется хаос. Лучи, скользящие вдоль внешней стенки («шепчущая галерея»), остаются регулярными.',
+    build: () => ({ outer: [circ(0, 0, 1.2)], holes: [circ(0.35, 0, 0.45)] }),
+    demo: () => [{ x: -0.6, y: 0.3, a: 0.9, hue: 8 }, { x: 0, y: -1.1, a: 0.1, hue: 228 }] },
+  { id: 'crescent', name: 'Полумесяц', caption: 'В рогах полумесяца свет теряется надолго.',
+    note: '<b>Фокусировка и рассеяние.</b> Внешняя дуга собирает лучи, внутренняя разбрасывает. В узких рогах луч может долго метаться, прежде чем выбраться.',
+    build: () => { const x = (1 - 0.85 * 0.85 + 0.45 * 0.45) / 0.9, a0 = Math.acos(x), b0 = Math.acos((x - 0.45) / 0.85);
+      return { outer: [arc(0, 0, 1, a0, TAU - a0), { ...arc(0.45, 0, 0.85, b0, TAU - b0), rev: true }], holes: [] }; },
+    demo: () => [{ x: -0.8, y: 0, a: -1.2, hue: 228 }, { x: -0.5, y: 0.65, a: 0.3, hue: 8 }] },
+  { id: 'heart', name: 'Сердце', caption: 'Две половинки круга и прямой угол: кто победит — порядок или хаос?',
+    note: '<b>Сердце.</b> Две выпуклые полуокружности, прямой угол внизу и выемка сверху. Дуги фокусируют, выемка рассеивает — динамика смешанная.',
+    build: () => { const L = Math.SQRT2, B = [0, 1], Rt = [1, 0], T = [0, -1], Lf = [-1, 0];
+      return { outer: [bow(Lf, T, -L / 2), bow(T, Rt, -L / 2), seg(1, 0, 0, 1), seg(0, 1, -1, 0)], holes: [] }; },
+    demo: () => [{ x: 0, y: 0.3, a: -1.2, hue: 228 }, { x: -0.6, y: -0.5, a: 0.4, hue: 8 }] },
+  { id: 'triangle', name: 'Треугольник', caption: 'Здесь есть путь, который замыкается за три отражения.',
+    note: '<b>Многоугольник.</b> В остроугольном треугольнике есть периодическая орбита Фаньяно — треугольник из оснований высот, самый короткий вписанный. Синий шар идёт по ней.',
+    build: () => ({ outer: poly(TRI), holes: [] }),
+    demo: () => {
+      const [A, B, C] = TRI, fc = foot(C, A, B), fa = foot(A, B, C);
+      const m = [(fc[0] + fa[0]) / 2, (fc[1] + fa[1]) / 2];
+      return [{ x: m[0], y: m[1], a: Math.atan2(fa[1] - fc[1], fa[0] - fc[0]), hue: 228 }, { x: -0.3, y: 0.4, a: 2.2, hue: 8 }];
+    } },
+  { id: 'lorentz', name: 'Газ Лоренца', caption: 'Луч блуждает между зеркалами, как электрон в металле.',
+    note: '<b>Диффузия.</b> Прямоугольник с решёткой круглых рассеивателей — модель Лоренца для электронов в металле. Траектория похожа на случайное блуждание.',
+    build: () => ({ outer: poly([[-1.6, -1], [1.6, -1], [1.6, 1], [-1.6, 1]]),
+      holes: [circ(-0.8, -0.5, 0.27), circ(0.8, -0.5, 0.27), circ(0, 0, 0.27), circ(-0.8, 0.5, 0.27), circ(0.8, 0.5, 0.27)] }),
+    demo: () => [{ x: -1.3, y: 0, a: 0.2, hue: 228 }, { x: -1.3, y: 0, a: 0.2 + 1e-6, hue: 8 }], twin: true },
+  { id: 'penrose', name: 'Комната Пенроуза', caption: 'В этой комнате есть угол, куда свет никогда не попадёт.',
+    note: '<b>Неосвещаемая комната.</b> Верх и низ — половинки эллипсов, острия стоят ровно в их фокусах. Луч из нижней половины, прошедший мимо отрезка между фокусами, никогда не попадёт наверх (золотой). Синий проходит между фокусами и освещает всё.',
+    build: penroseRoom,
+    demo: () => [{ x: 1.2, y: PR.h + 0.3, a: Math.atan2(-0.6, PR.c + 0.4 - 1.2), hue: 38 }, { x: -0.2, y: PR.h + 0.9, a: -1.2, hue: 228 }] },
+  { id: 'custom', name: 'Свой', caption: 'Ваша комната. Что сделает луч?',
+    note: '<b>Свой стол.</b> Выберите «Рисовать» и ставьте вершины касаниями, затем «Замкнуть». Пока здесь L-образный стол — рациональный многоугольник, у которого все углы кратны π/2.',
+    build: () => ({ outer: poly(customPts), holes: [] }), demo: () => null, noRotate: true },
+];
+
+/* ---------- state ---------- */
+const cv = $('#cv'), ctx = cv.getContext('2d');
+const pc = $('#pc'), pctx = pc.getContext('2d');
+const bgC = document.createElement('canvas'), bg = bgC.getContext('2d');
+const trC = document.createElement('canvas'), tr = trC.getContext('2d');
+let W = 0, H = 0, DPR = 1, PW = 0, PH = 0;
+let view = { k: 100, ox: 0, oy: 0 };
+let table = TABLES[0], geo = null, rotated = false;
+let balls = [], phaseQ = [], bounces = 0, pair = null;
+let paused = false, tool = 'launch', beam = 1, trailMode = 'keep';
+let speed = 3, spreadDeg = 0.01;
+let mode = 'sandbox', raySpeed = 'normal', lastRay = null, rayOrigin = null, rayLost = false, capT = 0, phaseWas = false, rayVisited = false;
+const RAY_SPEED = { slow: 0.3, normal: 0.75, fast: 2.5, turbo: 16 }; // table sizes per second
+// glow passes for the laser: [line width px, alpha]
+const RAY_PASSES = [[24, 0.016], [8, 0.04], [3, 0.1], [1.1, 0.75]];
+const app = $('#app');
+const HIST_CAP = 30000; // bounces kept per ball for an exact rewind
+let timeDir = 1, revMode = 'replay', revDoneShown = false, rayBeam = 1;
+let drag = null, drawPts = [];
+let tok = {};
+let hueIx = 0;
+const HUES = [228, 8, 165, 278, 40, 330, 195, 100];
+
+function readTokens() {
+  const cs = getComputedStyle(app), g = n => cs.getPropertyValue(n).trim();
+  tok = { bg: g('--bg'), paper: g('--paper'), grid: g('--grid'), ink: g('--ink'), muted: g('--muted'), line: g('--line'),
+    accent: g('--accent'), s: g('--ball-s'), l: g('--ball-l'), op: g('--trail-op') || 'source-over', ray: g('--ray') };
+}
+const ink = (h, a = 1) => `hsla(${h} ${tok.s} ${tok.l} / ${a})`;
+
+/* ---------- view ---------- */
+function fitView() {
+  const b = geo.bbox, m = Math.max(18, Math.min(W, H) * 0.06);
+  const bw = b.x1 - b.x0, bh = b.y1 - b.y0;
+  const k = Math.min((W - 2 * m) / bw, (H - 2 * m - 18) / bh);
+  return { k, ox: W / 2 - (b.x0 + bw / 2) * k, oy: (H - 18) / 2 - (b.y0 + bh / 2) * k };
+}
+const sx = x => view.ox + x * view.k, sy = y => view.oy + y * view.k;
+const wx = X => (X - view.ox) / view.k, wy = Y => (Y - view.oy) / view.k;
+
+function wantRotate() {
+  if (table.noRotate || !W) return rotated;
+  const g = table.build(); const tmp = { outer: g.outer, holes: g.holes }; finalize(tmp);
+  const wide = (tmp.bbox.x1 - tmp.bbox.x0) > (tmp.bbox.y1 - tmp.bbox.y0) * 1.05;
+  if (H > W * 1.1) return wide;
+  if (H < W * 0.95) return false;
+  return rotated;
+}
+
+function setTable(id, keepDemo = true) {
+  table = TABLES.find(t => t.id === id) || TABLES[0];
+  rotated = wantRotate();
+  const g = table.build();
+  geo = rotated ? { outer: g.outer.map(rotPiece), holes: g.holes.map(rotPiece) } : g;
+  finalize(geo);
+  for (const c of document.querySelectorAll('.chip')) c.setAttribute('aria-pressed', String(c.dataset.id === table.id));
+  const cur = document.querySelector(`.chip[data-id="${table.id}"]`);
+  if (cur) cur.parentElement.scrollTo({ left: cur.offsetLeft - cur.parentElement.offsetLeft - 24, behavior: 'smooth' });
+  $('#note').innerHTML = table.note;
+  balls = []; pair = null; bounces = 0; hueIx = 0; setTimeDir(1);
+  view = fitView();
+  drawBg(); clearTrails(); clearPhase();
+  if (keepDemo) runDemo();
+}
+function runDemo() {
+  if (mode === 'ray') { rayDemo(); return; }
+  let seeds = table.demo();
+  if (!seeds) { addRandom(2); return; }
+  if (rotated) seeds = seeds.map(rotSeed);
+  const made = [];
+  for (const s of seeds) if (inside(s.x, s.y)) made.push(addBall(s.x, s.y, s.a, s.hue));
+  if (table.twin && made.length === 2) pair = made;
+  hueIx = seeds.length;
+}
+
+/* ---------- sound ---------- */
+// each reflection rings like a small metal bar: free-bar overtone ratios, fast attack, ~0.8 s decay
+const NOTES = [554.37, 659.26, 739.99, 830.61, 987.77, 1108.73, 1318.51, 1479.98, 1661.22, 1975.53]; // E major pentatonic, C#5..B6
+const PARTIALS = [[1, 1, 0.18], [2.756, 0.47, 0.13], [5.404, 0.15, 0.09], [8.933, 0.04, 0.06]]; // [ratio, gain, decay time constant s]
+let soundOn = true, actx = null, bus = null, lastPing = 0;
+try { soundOn = localStorage.getItem('billiards.sound') !== 'off'; } catch (_) {}
+function makeBus(ac) {
+  const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5;
+  const master = ac.createGain(); master.gain.value = 0.55; master.connect(comp); comp.connect(ac.destination);
+  const len = Math.round(ac.sampleRate * 1.6), ir = ac.createBuffer(2, len, ac.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+  const verb = ac.createConvolver(), wet = ac.createGain();
+  verb.buffer = ir; wet.gain.value = 0.12; verb.connect(wet); wet.connect(master);
+  const nlen = Math.round(ac.sampleRate * 0.004), noise = ac.createBuffer(1, nlen, ac.sampleRate), nd = noise.getChannelData(0);
+  for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nlen);
+  return { master, verb, noise };
+}
+function chime(ac, b, f, vel, pan, when) {
+  const out = ac.createGain();
+  let tail = out;
+  if (ac.createStereoPanner) { tail = ac.createStereoPanner(); tail.pan.value = pan; out.connect(tail); }
+  tail.connect(b.master); tail.connect(b.verb);
+  let last = null;
+  for (const [r, g, tau] of PARTIALS) {
+    if (f * r > ac.sampleRate / 2.2) continue;
+    const o = ac.createOscillator(), e = ac.createGain();
+    o.frequency.value = f * r;
+    e.gain.setValueAtTime(0, when);
+    e.gain.linearRampToValueAtTime(g * vel, when + 0.005);
+    e.gain.setTargetAtTime(0, when + 0.005, tau);
+    o.connect(e); e.connect(out);
+    o.start(when); o.stop(when + tau * 12 + 0.05); last = o;
+  }
+  // the strike itself: a 4 ms tick under the ring
+  const n = ac.createBufferSource(), ng = ac.createGain();
+  n.buffer = b.noise; ng.gain.value = 0.06 * vel; n.connect(ng); ng.connect(out); n.start(when);
+  if (last) last.onended = () => tail.disconnect();
+}
+function sparkle(ac, b, when) {
+  const len = Math.round(ac.sampleRate * 0.08), buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+  const n = ac.createBufferSource(), hp = ac.createBiquadFilter(), g = ac.createGain();
+  n.buffer = buf; hp.type = 'highpass'; hp.frequency.value = 7000; g.gain.value = 0.07;
+  n.connect(hp); hp.connect(g); g.connect(b.master); g.connect(b.verb); n.start(when);
+}
+function ensureAudio() {
+  if (!soundOn) return;
+  try {
+    if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; actx = new AC(); bus = makeBus(actx); }
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+  } catch (_) { actx = null; }
+}
+const audible = () => soundOn && actx && actx.state === 'running';
+function ping(s, x, dn) {
+  if (!audible()) return;
+  const now = actx.currentTime;
+  if (now - lastPing < 0.07) return; // at most ~14 notes a second, so turbo turns into a shimmer, not noise
+  lastPing = now;
+  const bb = geo.bbox, pan = Math.max(-1, Math.min(1, ((x - bb.x0) / (bb.x1 - bb.x0) - 0.5) * 1.4));
+  chime(actx, bus, NOTES[Math.floor(s * 23) % NOTES.length], 0.14 + 0.2 * Math.abs(dn), pan, now + 0.005);
+}
+function launchSound() { if (audible()) sparkle(actx, bus, actx.currentTime + 0.005); }
+function setSound(on, user = true) {
+  soundOn = on;
+  try { localStorage.setItem('billiards.sound', on ? 'on' : 'off'); } catch (_) {}
+  const b = $('#bSound'); b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Звук включён' : 'Звук выключен');
+  $('#sndWaves').style.display = on ? '' : 'none';
+  if (on) { if (user || actx) ensureAudio(); } else if (actx) actx.suspend().catch(() => {});
+}
+
+/* ---------- ray mode ---------- */
+function rayDemo() {
+  let seeds = table.demo();
+  if (seeds && rotated) seeds = seeds.map(rotSeed);
+  const s = seeds && seeds.find(q => inside(q.x, q.y));
+  if (s) { launchRay(s.x, s.y, s.a); return; }
+  const p = randomInside(); if (p) launchRay(p[0], p[1], Math.random() * TAU);
+}
+function launchRay(x, y, a) {
+  balls = []; pair = null; bounces = 0; rayLost = false; setTimeDir(1);
+  clearTrails();
+  const n = rayBeam, fan = 1.5 * Math.PI / 180;
+  for (let i = 0; i < n; i++) {
+    const f = n === 1 ? 0 : i / (n - 1) - 0.5, b = addBall(x, y, a + f * fan, 38);
+    if (n > 1) b.rayCol = `hsl(${Math.round(16 + 40 * (i / (n - 1)))} 95% 62%)`;
+  }
+  rayOrigin = [x, y]; lastRay = { x, y, a, id: table.id };
+  launchSound();
+  const c = $('#caption');
+  c.textContent = n > 1 ? '64 почти одинаковых луча. Дождитесь хаоса и нажмите «Назад во времени».' : (table.caption || ''); c.classList.remove('gone');
+  clearTimeout(capT); capT = setTimeout(() => c.classList.add('gone'), n > 1 ? 4500 : 3200);
+}
+function setMode(m) {
+  if (m === mode) return;
+  mode = m; app.dataset.mode = m;
+  for (const b of document.querySelectorAll('#modes button')) b.setAttribute('aria-pressed', String(b.dataset.mode === m));
+  $('#sheet').hidden = true; $('#bSettings').setAttribute('aria-expanded', 'false');
+  setTool('launch');
+  if (m === 'ray') { phaseWas = phaseOn; setPhase(false); }
+  else if (phaseWas) setPhase(true);
+  readTokens();
+  const id = m === 'ray' && !rayVisited ? 'penrose' : table.id;
+  if (m === 'ray') rayVisited = true;
+  setTable(id);
+}
+
+/* ---------- balls ---------- */
+function addBall(x, y, a, hue) {
+  const b = { x, y, dx: Math.cos(a), dy: Math.sin(a), hue, col: ink(hue), alive: true, skip: null, rem: 0, hx: 0, hy: 0, h: null,
+    x0: x, y0: y, t: 0, trk: [x, y, -1], rp: null, rx: x, ry: y, done: false };
+  aim(b);
+  if (b.alive) { balls.push(b); if (balls.length > MAX_BALLS) balls.splice(0, balls.length - MAX_BALLS); }
+  return b;
+}
+function aim(b) {
+  const h = nearest(b.x, b.y, b.dx, b.dy, b.skip);
+  if (!h) { b.alive = false; return; }
+  if (h.t > 1e-6 && !inside(b.x + b.dx * h.t * 0.5, b.y + b.dy * h.t * 0.5)) { b.alive = false; return; }
+  b.h = h; b.rem = h.t; b.hx = b.x + b.dx * h.t; b.hy = b.y + b.dy * h.t;
+}
+function launch(x, y, a) {
+  if (timeDir < 0) reverseTime();
+  const n = beam, spread = spreadDeg * Math.PI / 180, made = [];
+  for (let i = 0; i < n; i++) {
+    const f = n === 1 ? 0 : i / (n - 1) - 0.5;
+    let hue;
+    if (n === 1) hue = HUES[hueIx++ % HUES.length];
+    else if (n === 2) hue = i === 0 ? 228 : 8;
+    else hue = 230 - 225 * (i / (n - 1));
+    made.push(addBall(x, y, a + f * spread, hue));
+  }
+  if (n === 2) pair = made;
+  launchSound();
+}
+function randomInside() {
+  const b = geo.bbox;
+  for (let i = 0; i < 400; i++) {
+    const x = b.x0 + Math.random() * (b.x1 - b.x0), y = b.y0 + Math.random() * (b.y1 - b.y0);
+    if (inside(x, y)) return [x, y];
+  }
+  return null;
+}
+function addRandom(n) {
+  if (timeDir < 0) reverseTime();
+  for (let i = 0; i < n; i++) {
+    const p = randomInside(); if (!p) return;
+    addBall(p[0], p[1], Math.random() * TAU, HUES[hueIx++ % HUES.length]);
+  }
+}
+
+/* ---------- simulation ---------- */
+const PTS = [];
+function strokePts(col) {
+  tr.beginPath(); tr.moveTo(PTS[0], PTS[1]);
+  for (let i = 2; i < PTS.length; i += 2) tr.lineTo(PTS[i], PTS[i + 1]);
+  if (mode !== 'ray') { tr.strokeStyle = col; tr.stroke(); return; }
+  tr.strokeStyle = col;
+  const k = balls.length > 1 ? 0.45 : 1;
+  for (const [w, a] of RAY_PASSES) { tr.lineWidth = w; tr.globalAlpha = a * k; tr.stroke(); }
+}
+function advance(b, dist) {
+  if (b.done) return;
+  let stop = false;
+  if (timeDir < 0 && dist >= b.t) { dist = b.t; stop = true; } // honest reverse ends where the ball started
+  b.t = Math.max(0, b.t + timeDir * dist);
+  PTS.length = 0; PTS.push(sx(b.x), sy(b.y));
+  let n = 0;
+  while (b.alive && dist >= b.rem && n < MAX_BOUNCES) {
+    dist -= b.rem;
+    b.x = b.hx; b.y = b.hy;
+    PTS.push(sx(b.x), sy(b.y));
+    const h = b.h, [nx, ny, tx, ty, s] = surface(h.p, h.u);
+    const dn = b.dx * nx + b.dy * ny;
+    let dx = b.dx - 2 * dn * nx, dy = b.dy - 2 * dn * ny;
+    const l = Math.hypot(dx, dy); b.dx = dx / l; b.dy = dy / l;
+    let c = b.dx * tx + b.dy * ty; if (c > 1) c = 1; else if (c < -1) c = -1;
+    if (phaseOn) phaseQ.push(s / geo.total, c, b.hue);
+    if (soundOn) ping(s / geo.total, b.x, dn);
+    if (timeDir > 0) histPush(b, b.x, b.y, s / geo.total);
+    else if (b.trk.length > 3) b.trk.length -= 3;
+    b.skip = h.p.t === 'seg' ? h.p : null;
+    aim(b);
+    n++; bounces = Math.max(0, bounces + timeDir);
+  }
+  if (stop && b.alive) b.done = true;
+  if (b.alive && n < MAX_BOUNCES) {
+    b.x += b.dx * dist; b.y += b.dy * dist; b.rem -= dist;
+    PTS.push(sx(b.x), sy(b.y));
+  }
+  strokePts(mode === 'ray' ? (b.rayCol || `rgb(${tok.ray})`) : b.col);
+}
+function step(dt) {
+  const rayFan = mode === 'ray' && balls.length > 1;
+  if ((trailMode === 'fade' && mode !== 'ray') || rayFan) {
+    tr.globalCompositeOperation = 'destination-out';
+    tr.fillStyle = `rgba(0,0,0,${1 - Math.pow(rayFan ? 0.955 : 0.93, dt * 60)})`;
+    tr.fillRect(0, 0, W, H);
+  }
+  tr.globalCompositeOperation = tok.op;
+  const n = Math.max(1, balls.length);
+  tr.globalAlpha = trailMode === 'fade' ? 0.9 : Math.max(0.05, Math.min(0.7, 0.75 / Math.sqrt(n)));
+  tr.lineWidth = 1.1; tr.lineJoin = 'round';
+  const bb = geo.bbox;
+  const d = (mode === 'ray' ? RAY_SPEED[raySpeed] * Math.max(bb.x1 - bb.x0, bb.y1 - bb.y0) : speed) * dt;
+  for (const b of balls) {
+    if (!b.alive) continue;
+    if (b.rp) { if (b.done) continue; const left = replayStep(b, d); if (left > 0) advance(b, left); }
+    else advance(b, d);
+  }
+  if (timeDir < 0 && !revDoneShown && balls.length && balls.every(b => b.done)) {
+    revDoneShown = true;
+    if (revMode === 'honest') {
+      const err = Math.max(...balls.map(b => Math.hypot(b.x - b.x0, b.y - b.y0)));
+      toast(err < 1e-3 ? `Все лучи вернулись в точку старта. Ошибка ${err.toExponential(0)}` : `Хаос победил: ошибки округления выросли до ${err.toFixed(2)}, лучи не собрались`);
+    } else toast('Все лучи вернулись в точку старта');
+  }
+  tr.globalAlpha = 1; tr.globalCompositeOperation = 'source-over';
+  if (balls.some(b => !b.alive)) balls = balls.filter(b => b.alive);
+  if (pair && !(pair[0].alive && pair[1].alive)) pair = null;
+  if (mode === 'ray' && lastRay && !balls.length && !rayLost) { rayLost = true; toast('Луч попал точно в угол. Нажмите «Заново» или коснитесь стола'); }
+  flushPhase();
+}
+
+/* ---------- time reversal ---------- */
+function histPush(b, x, y, s) {
+  b.trk.push(x, y, s);
+  if (b.trk.length > HIST_CAP * 4.5) b.trk = b.trk.slice(-HIST_CAP * 3); // oldest bounces dropped: rewind stops there
+}
+const posX = b => b.rp ? b.rx : b.x, posY = b => b.rp ? b.ry : b.y;
+// segment k of the recorded path runs from point k to point k+1, the last one to the live position
+function segEnd(b, k) { const h = b.trk; return k + 1 < h.length / 3 ? [h[3 * k + 3], h[3 * k + 4]] : [b.x, b.y]; }
+function segLen(b, k) { const [x, y] = segEnd(b, k); return Math.hypot(x - b.trk[3 * k], y - b.trk[3 * k + 1]); }
+function replayPos(b) {
+  const k = b.rp.k, [x2, y2] = segEnd(b, k), x1 = b.trk[3 * k], y1 = b.trk[3 * k + 1];
+  const L = Math.hypot(x2 - x1, y2 - y1), f = L > 0 ? b.rp.u / L : 0;
+  b.rx = x1 + (x2 - x1) * f; b.ry = y1 + (y2 - y1) * f;
+}
+function replayHit(b, k) {
+  const s = b.trk[3 * k + 2];
+  if (s < 0) return;
+  bounces = Math.max(0, bounces + timeDir);
+  if (soundOn) ping(s, b.trk[3 * k], 0.6);
+}
+// moves a rewinding ball along its recorded path; returns the distance left over once it is back at its live position
+function replayStep(b, d) {
+  const h = b.trk, n = h.length / 3;
+  PTS.length = 0; PTS.push(sx(b.rx), sy(b.ry));
+  let k = b.rp.k, u = b.rp.u, left = 0;
+  if (timeDir < 0) {
+    u -= d;
+    while (u < 0) {
+      PTS.push(sx(h[3 * k]), sy(h[3 * k + 1]));
+      if (k === 0) { u = 0; b.done = true; break; }
+      replayHit(b, k);
+      k--; u += segLen(b, k);
+    }
+  } else {
+    u += d;
+    let L = segLen(b, k);
+    while (u >= L) {
+      u -= L; k++;
+      if (k >= n) { left = Math.max(u, 1e-12); break; }
+      PTS.push(sx(h[3 * k]), sy(h[3 * k + 1]));
+      replayHit(b, k);
+      L = segLen(b, k);
+    }
+  }
+  if (left) { b.rp = null; PTS.push(sx(b.x), sy(b.y)); }
+  else { b.rp.k = k; b.rp.u = u; replayPos(b); PTS.push(sx(b.rx), sy(b.ry)); }
+  strokePts(mode === 'ray' ? (b.rayCol || `rgb(${tok.ray})`) : b.col);
+  return left;
+}
+function setTimeDir(dir) {
+  timeDir = dir; revDoneShown = false;
+  const back = dir < 0;
+  $('#bRev').setAttribute('aria-pressed', String(back));
+  $('#revLabel').textContent = back ? 'Вперёд' : 'Назад во времени';
+  $('#bRev').setAttribute('aria-label', back ? 'Вперёд во времени' : 'Назад во времени');
+  $('#revIcon').setAttribute('d', back ? 'M1 3v10l7-5zM8 3v10l7-5z' : 'M8 3v10L1 8zM15 3v10L8 8z');
+}
+function reverseTime() {
+  if (!balls.length) return;
+  setTimeDir(-timeDir);
+  for (const b of balls) {
+    b.done = false;
+    if (revMode === 'honest' && !b.rp) { b.dx = -b.dx; b.dy = -b.dy; b.skip = null; aim(b); continue; }
+    if (timeDir < 0 && !b.rp) {
+      const n = b.trk.length / 3;
+      b.rp = { k: n - 1, u: Math.hypot(b.x - b.trk[3 * n - 3], b.y - b.trk[3 * n - 2]) };
+      b.rx = b.x; b.ry = b.y;
+    }
+  }
+  if (balls.some(b => !b.alive)) balls = balls.filter(b => b.alive);
+}
+
+/* ---------- drawing ---------- */
+function tracePath(c, pieces, k, ox, oy) {
+  let first = true;
+  for (const p of pieces) {
+    if (p.t === 'seg') {
+      if (first) c.moveTo(ox + p.ax * k, oy + p.ay * k);
+      c.lineTo(ox + p.bx * k, oy + p.by * k);
+    } else if (p.t === 'arc') {
+      const from = p.rev ? p.a1 : p.a0, to = p.rev ? p.a0 : p.a1;
+      if (first) c.moveTo(ox + (p.cx + p.r * Math.cos(from)) * k, oy + (p.cy + p.r * Math.sin(from)) * k);
+      c.arc(ox + p.cx * k, oy + p.cy * k, p.r * k, from, to, !!p.rev);
+    } else {
+      if (first || p.a1 - p.a0 >= TAU) c.moveTo(ox + (p.cx + p.a * Math.cos(p.a0)) * k, oy + (p.cy + p.b * Math.sin(p.a0)) * k);
+      c.ellipse(ox + p.cx * k, oy + p.cy * k, p.a * k, p.b * k, 0, p.a0, p.a1);
+    }
+    first = false;
+  }
+  c.closePath();
+}
+function regionPath(c) {
+  c.beginPath();
+  tracePath(c, geo.outer, view.k, view.ox, view.oy);
+  for (const h of geo.holes) tracePath(c, [h], view.k, view.ox, view.oy);
+}
+function drawBg() {
+  bg.setTransform(DPR, 0, 0, DPR, 0, 0);
+  bg.fillStyle = tok.bg; bg.fillRect(0, 0, W, H);
+  regionPath(bg); bg.fillStyle = tok.paper; bg.fill('evenodd');
+  bg.save(); regionPath(bg); bg.clip('evenodd');
+  bg.strokeStyle = tok.grid; bg.lineWidth = 1;
+  const step = 0.1 * view.k, x0 = view.ox % step, y0 = view.oy % step;
+  bg.beginPath();
+  for (let x = x0; x < W; x += step) { bg.moveTo(Math.round(x) + 0.5, 0); bg.lineTo(Math.round(x) + 0.5, H); }
+  for (let y = y0; y < H; y += step) { bg.moveTo(0, Math.round(y) + 0.5); bg.lineTo(W, Math.round(y) + 0.5); }
+  bg.stroke();
+  bg.restore();
+  // foci of ellipses
+  if (mode !== 'ray') for (const p of geo.outer) if (p.t === 'ell' && p.a1 - p.a0 >= TAU) {
+    const c = Math.sqrt(Math.abs(p.a * p.a - p.b * p.b)), along = p.a >= p.b;
+    for (const s of [-1, 1]) {
+      const X = sx(p.cx + (along ? s * c : 0)), Y = sy(p.cy + (along ? 0 : s * c));
+      bg.strokeStyle = tok.muted; bg.lineWidth = 1.2; bg.beginPath();
+      bg.moveTo(X - 5, Y - 5); bg.lineTo(X + 5, Y + 5); bg.moveTo(X + 5, Y - 5); bg.lineTo(X - 5, Y + 5); bg.stroke();
+    }
+  }
+}
+function clearTrails() { tr.setTransform(1, 0, 0, 1, 0, 0); tr.clearRect(0, 0, trC.width, trC.height); tr.setTransform(DPR, 0, 0, DPR, 0, 0); }
+
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(bgC, 0, 0);
+  ctx.drawImage(trC, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  regionPath(ctx); ctx.strokeStyle = tok.line; ctx.lineJoin = 'round';
+  if (mode === 'ray') {
+    ctx.lineWidth = 4; ctx.stroke(); ctx.lineWidth = 1.3; ctx.strokeStyle = '#4a4741'; ctx.stroke();
+    renderRay(); return;
+  }
+  ctx.lineWidth = 2; ctx.stroke();
+  const r = balls.length > 120 ? 2 : 3.5;
+  for (const b of balls) {
+    ctx.beginPath(); ctx.arc(sx(posX(b)), sy(posY(b)), r, 0, TAU);
+    ctx.fillStyle = b.col; ctx.fill();
+    if (r > 2) { ctx.lineWidth = 1.5; ctx.strokeStyle = tok.paper; ctx.stroke(); }
+  }
+  if (drag && drag.kind === 'launch' && drag.moved) drawAim();
+  if (drag && drag.kind === 'obs') {
+    ctx.beginPath(); ctx.arc(sx(drag.x), sy(drag.y), drag.r * view.k, 0, TAU);
+    ctx.setLineDash([5, 4]); ctx.strokeStyle = tok.accent; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (tool === 'draw' && drawPts.length) {
+    ctx.beginPath();
+    drawPts.forEach(([x, y], i) => i ? ctx.lineTo(sx(x), sy(y)) : ctx.moveTo(sx(x), sy(y)));
+    ctx.strokeStyle = tok.accent; ctx.lineWidth = 2; ctx.stroke();
+    drawPts.forEach(([x, y], i) => { ctx.beginPath(); ctx.arc(sx(x), sy(y), i ? 3.5 : 7, 0, TAU); ctx.fillStyle = i ? tok.accent : 'transparent'; ctx.fill(); if (!i) { ctx.strokeStyle = tok.accent; ctx.stroke(); } });
+  }
+}
+function renderRay() {
+  if (rayOrigin) {
+    ctx.beginPath(); ctx.arc(sx(rayOrigin[0]), sy(rayOrigin[1]), 3, 0, TAU);
+    ctx.strokeStyle = `rgba(${tok.ray},.8)`; ctx.lineWidth = 1.2; ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'lighter';
+  const glow = balls.length > 1 ? 0.35 : 0.9;
+  for (const b of balls) {
+    const X = sx(posX(b)), Y = sy(posY(b)), g = ctx.createRadialGradient(X, Y, 0, X, Y, 22);
+    g.addColorStop(0, `rgba(${tok.ray},${glow})`); g.addColorStop(0.25, `rgba(${tok.ray},.35)`); g.addColorStop(1, `rgba(${tok.ray},0)`);
+    ctx.fillStyle = g; ctx.fillRect(X - 22, Y - 22, 44, 44);
+    ctx.beginPath(); ctx.arc(X, Y, 2.2, 0, TAU); ctx.fillStyle = '#fff6e6'; ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  if (drag && drag.kind === 'launch' && drag.moved) drawAim();
+}
+function drawAim() {
+  const X0 = drag.X0, Y0 = drag.Y0, a = Math.atan2(drag.Y - Y0, drag.X - X0);
+  const spread = beam > 1 && mode !== 'ray' ? spreadDeg * Math.PI / 180 : 0;
+  ctx.strokeStyle = tok.accent; ctx.lineWidth = 1.5;
+  for (const f of spread ? [-0.5, 0.5] : [0]) {
+    const aa = a + f * spread, h = nearest(wx(X0), wy(Y0), Math.cos(aa), Math.sin(aa), null);
+    if (!h) continue;
+    ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(X0, Y0);
+    ctx.lineTo(X0 + Math.cos(aa) * h.t * view.k, Y0 + Math.sin(aa) * h.t * view.k); ctx.stroke(); ctx.setLineDash([]);
+  }
+  const L = 34, ex = X0 + Math.cos(a) * L, ey = Y0 + Math.sin(a) * L;
+  ctx.beginPath(); ctx.moveTo(X0, Y0); ctx.lineTo(ex, ey);
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - Math.cos(a - 0.45) * 9, ey - Math.sin(a - 0.45) * 9);
+  ctx.moveTo(ex, ey); ctx.lineTo(ex - Math.cos(a + 0.45) * 9, ey - Math.sin(a + 0.45) * 9);
+  ctx.lineWidth = 2.2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(X0, Y0, 4, 0, TAU); ctx.fillStyle = tok.accent; ctx.fill();
+}
+
+/* ---------- phase portrait ---------- */
+let phaseOn = false;
+function clearPhase() {
+  if (!PW) return;
+  pctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  pctx.fillStyle = tok.paper; pctx.fillRect(0, 0, PW, PH);
+  pctx.strokeStyle = tok.grid; pctx.lineWidth = 1; pctx.beginPath();
+  pctx.moveTo(0, Math.round(PH / 2) + 0.5); pctx.lineTo(PW, Math.round(PH / 2) + 0.5);
+  if (geo) for (const p of geo.pieces) { const x = Math.round(p.s0 / geo.total * PW) + 0.5; pctx.moveTo(x, 0); pctx.lineTo(x, PH); }
+  pctx.stroke();
+  phaseQ.length = 0;
+}
+function flushPhase() {
+  if (!phaseOn || !phaseQ.length) { phaseQ.length = 0; return; }
+  pctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  pctx.globalAlpha = 0.75;
+  for (let i = 0; i < phaseQ.length; i += 3) {
+    pctx.fillStyle = ink(phaseQ[i + 2]);
+    pctx.fillRect(phaseQ[i] * PW - 0.8, (1 - phaseQ[i + 1]) / 2 * PH - 0.8, 1.6, 1.6);
+  }
+  pctx.globalAlpha = 1;
+  phaseQ.length = 0;
+}
+
+/* ---------- sizing ---------- */
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const nW = Math.max(1, Math.round(r.width)), nH = Math.max(1, Math.round(r.height)), nD = Math.min(2.5, window.devicePixelRatio || 1);
+  if (nW === W && nH === H && nD === DPR) return;
+  const old = W ? (() => { const c = document.createElement('canvas'); c.width = trC.width; c.height = trC.height; c.getContext('2d').drawImage(trC, 0, 0); return c; })() : null;
+  const oldView = view, oldW = W, oldH = H;
+  W = nW; H = nH; DPR = nD;
+  for (const c of [cv, bgC, trC]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  tr.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (!geo) return;
+  if (wantRotate() !== rotated) { setTable(table.id); return; }
+  view = fitView(); drawBg();
+  if (old) {
+    const q = view.k / oldView.k;
+    tr.drawImage(old, view.ox - oldView.ox * q, view.oy - oldView.oy * q, oldW * q, oldH * q);
+  }
+}
+function resizePhase() {
+  if (!phaseOn) return;
+  const r = pc.getBoundingClientRect();
+  const nW = Math.max(1, Math.round(r.width)), nH = Math.max(1, Math.round(r.height));
+  if (nW === PW && nH === PH) return;
+  let old = null;
+  if (PW) { old = document.createElement('canvas'); old.width = pc.width; old.height = pc.height; old.getContext('2d').drawImage(pc, 0, 0); }
+  PW = nW; PH = nH; pc.width = Math.round(PW * DPR); pc.height = Math.round(PH * DPR);
+  if (old) { pctx.setTransform(1, 0, 0, 1, 0, 0); pctx.drawImage(old, 0, 0, pc.width, pc.height); }
+  else clearPhase();
+}
+
+/* ---------- geometry edits ---------- */
+function geometryChanged() {
+  if (timeDir < 0) reverseTime();
+  finalize(geo);
+  for (const b of balls) { b.rp = null; b.done = false; b.trk = [b.x, b.y, -1]; b.x0 = b.x; b.y0 = b.y; b.t = 0; }
+  for (const b of balls) { if (!inside(b.x, b.y)) { b.alive = false; continue; } b.skip = null; aim(b); }
+  balls = balls.filter(b => b.alive);
+  if (pair && !(pair[0].alive && pair[1].alive)) pair = null;
+  drawBg(); clearPhase();
+}
+function circleFits(x, y, r) {
+  if (!inside(x, y)) return false;
+  for (let i = 0; i < 40; i++) { const a = i / 40 * TAU; if (!inside(x + r * 1.03 * Math.cos(a), y + r * 1.03 * Math.sin(a))) return false; }
+  return true;
+}
+function holeAt(x, y) {
+  for (let i = geo.holes.length - 1; i >= 0; i--) { const h = geo.holes[i]; if (h.t === 'arc' && Math.hypot(x - h.cx, y - h.cy) <= h.r) return i; }
+  return -1;
+}
+
+/* ---------- input ---------- */
+function rel(e) { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+cv.addEventListener('pointerdown', e => {
+  const [X, Y] = rel(e), x = wx(X), y = wy(Y);
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  if (tool === 'launch') {
+    if (!inside(x, y)) { toast('Начните внутри стола'); return; }
+    drag = { kind: 'launch', X0: X, Y0: Y, X, Y, moved: false };
+  } else if (tool === 'obstacle') {
+    const hi = holeAt(x, y);
+    if (hi >= 0) { drag = { kind: 'remove', hi, X0: X, Y0: Y }; return; }
+    if (!inside(x, y)) { toast('Ставьте препятствие внутри стола'); return; }
+    drag = { kind: 'obs', x, y, r: 0.15, X0: X, Y0: Y, moved: false };
+  } else if (tool === 'draw') {
+    drag = { kind: 'draw', X0: X, Y0: Y };
+  }
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const [X, Y] = rel(e);
+  if (Math.hypot(X - drag.X0, Y - drag.Y0) > 8) drag.moved = true;
+  if (drag.kind === 'launch') { drag.X = X; drag.Y = Y; }
+  if (drag.kind === 'obs' && drag.moved) drag.r = Math.max(0.04, Math.hypot(wx(X) - drag.x, wy(Y) - drag.y));
+});
+function endDrag(e) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  const [X, Y] = rel(e);
+  if (d.kind === 'launch') {
+    const a = d.moved ? Math.atan2(d.Y - d.Y0, d.X - d.X0) : Math.random() * TAU;
+    if (mode === 'ray') launchRay(wx(d.X0), wy(d.Y0), a); else launch(wx(d.X0), wy(d.Y0), a);
+  } else if (d.kind === 'remove') {
+    if (Math.hypot(X - d.X0, Y - d.Y0) < 10) { geo.holes.splice(d.hi, 1); geometryChanged(); toast('Препятствие убрано'); }
+  } else if (d.kind === 'obs') {
+    if (circleFits(d.x, d.y, d.r)) { geo.holes.push(circ(d.x, d.y, d.r)); geometryChanged(); }
+    else toast('Круг должен целиком помещаться в стол и не задевать другие');
+  } else if (d.kind === 'draw') {
+    if (Math.hypot(X - d.X0, Y - d.Y0) > 12) return;
+    const x = wx(X), y = wy(Y);
+    if (drawPts.length >= 3) { const [fx, fy] = drawPts[0]; if (Math.hypot(sx(fx) - X, sy(fy) - Y) < 16) { closeDrawing(); return; } }
+    drawPts.push([x, y]); updateDrawbar();
+  }
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', () => { drag = null; });
+
+function closeDrawing() {
+  if (drawPts.length < 3) { toast('Нужно хотя бы три вершины'); return; }
+  customPts = drawPts.slice(); customDrawn = true; drawPts = [];
+  setTable('custom', false);
+  $('#note').innerHTML = '<b>Свой стол.</b> Запускайте шары и смотрите, регулярен он или хаотичен. Новый стол — снова «Рисовать».';
+  addRandom(2);
+  setTool('launch');
+}
+function updateDrawbar() {
+  $('#drawMsg').textContent = drawPts.length ? `Вершин: ${drawPts.length}. Замкните касанием первой точки` : 'Касайтесь — ставьте вершины';
+}
+
+/* ---------- UI wiring ---------- */
+const chips = $('#tables');
+for (const t of TABLES) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'chip'; b.dataset.id = t.id; b.textContent = t.name; b.setAttribute('aria-pressed', 'false');
+  b.addEventListener('click', () => { drawPts = []; if (tool === 'draw') setTool('launch'); setTable(t.id); });
+  chips.appendChild(b);
+}
+$('#note').addEventListener('click', e => e.currentTarget.classList.toggle('open'));
+
+function setTool(t) {
+  tool = t;
+  for (const b of document.querySelectorAll('#tools button')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+  $('#drawbar').hidden = t !== 'draw';
+  if (t === 'draw') { drawPts = []; updateDrawbar(); toast('Рисуйте новый стол поверх текущего'); }
+  else drawPts = [];
+}
+document.querySelectorAll('#tools button').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
+$('#drawClose').addEventListener('click', closeDrawing);
+$('#drawReset').addEventListener('click', () => { drawPts = []; updateDrawbar(); });
+
+function setPaused(p) {
+  paused = p;
+  const b = $('#bPause'); b.setAttribute('aria-pressed', String(p));
+  b.querySelector('span').textContent = p ? 'Пуск' : 'Пауза'; b.setAttribute('aria-label', p ? 'Пуск' : 'Пауза');
+  b.querySelector('svg').innerHTML = p ? '<path d="M4 2l10 6-10 6z"/>' : '<rect x="3" y="2" width="3.5" height="12"/><rect x="9.5" y="2" width="3.5" height="12"/>';
+}
+$('#bPause').addEventListener('click', () => setPaused(!paused));
+$('#bSound').addEventListener('click', () => setSound(!soundOn));
+document.addEventListener('pointerdown', ensureAudio, true);
+document.addEventListener('keydown', ensureAudio, true);
+$('#bRandom').addEventListener('click', () => addRandom(20));
+$('#bClear').addEventListener('click', () => { balls = []; pair = null; bounces = 0; clearTrails(); clearPhase(); });
+$('#bWipe').addEventListener('click', () => { clearTrails(); clearPhase(); });
+function setPhase(on) {
+  phaseOn = on;
+  $('#phase').hidden = !on; $('#stage').classList.toggle('with-phase', on);
+  $('#bPhase').setAttribute('aria-pressed', String(on));
+  if (on) { PW = 0; requestAnimationFrame(() => { resize(); resizePhase(); }); }
+}
+$('#bPhase').addEventListener('click', () => setPhase(!phaseOn));
+$('#bSettings').addEventListener('click', () => {
+  const s = $('#sheet'), open = s.hidden; s.hidden = !open;
+  $('#bSettings').setAttribute('aria-expanded', String(open));
+});
+document.addEventListener('pointerdown', e => {
+  const s = $('#sheet');
+  if (!s.hidden && !s.contains(e.target) && !$('#bSettings').contains(e.target)) { s.hidden = true; $('#bSettings').setAttribute('aria-expanded', 'false'); }
+});
+
+const fmt = v => v >= 10 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v >= 0.01 ? v.toFixed(2) : v.toExponential(0).replace('e', '·10^');
+function onSpeed() { const v = +$('#speed').value; speed = 0.3 * Math.pow(10, v / 100 * 2.2); $('#speedVal').textContent = `${fmt(speed)} ед/с`; }
+function onSpread() { const v = +$('#spread').value; spreadDeg = Math.pow(10, -4 + v / 100 * 5.95); $('#spreadVal').textContent = `${fmt(spreadDeg)}°`; }
+$('#speed').addEventListener('input', onSpeed); $('#spread').addEventListener('input', onSpread);
+onSpeed(); onSpread();
+function segGroup(sel, cb) {
+  document.querySelectorAll(sel + ' button').forEach(b => b.addEventListener('click', () => {
+    for (const o of document.querySelectorAll(sel + ' button')) o.setAttribute('aria-pressed', String(o === b));
+    cb(b.dataset.v);
+  }));
+}
+segGroup('#beam', v => { beam = +v; });
+segGroup('#trail', v => { trailMode = v; });
+segGroup('#rspeed', v => { raySpeed = v; });
+segGroup('#rbeam', v => { rayBeam = +v; if (lastRay && lastRay.id === table.id) launchRay(lastRay.x, lastRay.y, lastRay.a); else rayDemo(); });
+segGroup('#revmode', v => { if (timeDir < 0) reverseTime(); revMode = v; });
+$('#bRev').addEventListener('click', () => { if (!balls.length) { toast('Сначала запустите луч'); return; } reverseTime(); });
+document.querySelectorAll('#modes button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('#bAgain').addEventListener('click', () => {
+  if (lastRay && lastRay.id === table.id) launchRay(lastRay.x, lastRay.y, lastRay.a); else rayDemo();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.closest('input')) return;
+  if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
+  if (e.code === 'KeyR' && balls.length) reverseTime();
+});
+
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 1800); }
+
+const nf = new Intl.NumberFormat('ru-RU');
+let hudT = 0;
+function hud(now) {
+  if (mode === 'ray') { $('#rcount').textContent = String(bounces).padStart(4, '0'); return; }
+  if (now - hudT < 200) return; hudT = now;
+  let s = `<span>шаров <b>${balls.length}</b></span><span>отражений <b>${nf.format(bounces)}</b></span>`;
+  if (pair) { const d = Math.hypot(posX(pair[0]) - posX(pair[1]), posY(pair[0]) - posY(pair[1])); s += `<span>Δ близнецов <b>${d < 1e-3 ? d.toExponential(1) : d.toFixed(3)}</b></span>`; }
+  if (paused) s += '<span><b>пауза</b></span>';
+  $('#hud').innerHTML = s;
+}
+
+function onTheme() { readTokens(); for (const b of balls) b.col = ink(b.hue); if (geo) { drawBg(); clearTrails(); clearPhase(); } }
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme); } catch (_) {}
+new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+new ResizeObserver(() => { resize(); resizePhase(); }).observe($('#board'));
+new ResizeObserver(() => resizePhase()).observe($('#phase'));
+
+/* ---------- boot ---------- */
+readTokens();
+setSound(soundOn, false);
+resize();
+setTable('ellipse');
+if (window.innerWidth >= 900) setPhase(true);
+if (location.hash === '#ray') setMode('ray');
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!paused && geo) step(dt);
+  if (geo) render();
+  hud(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
