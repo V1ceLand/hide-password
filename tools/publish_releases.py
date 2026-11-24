@@ -16,7 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "V1ceLand/hide-password"
-DISCORD = "https://discord.gg/6g6VqENtvU"
+DISCORD = "https://discord.gg/NQjHG9EF4v"
+DISCORD_ME = "https://discord.com/users/741923152019324949"
 
 
 def props(path: Path) -> dict[str, str]:
@@ -75,8 +76,8 @@ Download `{jar.name}` below and put it into `mods/`. Remove the old `password-ma
 {notes}
 
 ### Help / Помощь
-Bugs and questions — Discord **by KOZYR**, section 🔐 HIDE PASSWORD: {DISCORD}
-Баги и вопросы — Discord «by KOZYR», раздел 🔐 HIDE PASSWORD: {DISCORD}
+Bugs and questions — Discord server **KOZYR SMP**: {DISCORD} or KOZYR directly: {DISCORD_ME}
+Баги и вопросы — Discord сервера KOZYR SMP: {DISCORD} или мне в личку: {DISCORD_ME}
 """
         latest = index == len(modules) - 1
         print(f"{tag:28} {supported:14} {'LATEST ' if latest else ''}{'exists' if tag in existing else ''}")

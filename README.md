@@ -1,6 +1,6 @@
 # Hide Password (by KOZYR)
 
-[![Discord](https://img.shields.io/badge/Discord-by%20KOZYR-5865F2?logo=discord&logoColor=white)](https://discord.gg/6g6VqENtvU)
+[![Discord](https://img.shields.io/badge/Discord-KOZYR%20SMP-5865F2?logo=discord&logoColor=white)](https://discord.gg/NQjHG9EF4v)
 
 Client-side Fabric mod that hides your password behind asterisks while you type it —
 in chat (`/login`, `/register`, `/changepassword`, …) and in server login dialogs
@@ -38,9 +38,10 @@ Every release is marked with the Minecraft versions it supports (`+mc<version>` 
 
 ## Help & feedback / Помощь
 
-Bugs and questions — Discord **by KOZYR**, section **🔐 HIDE PASSWORD**: https://discord.gg/6g6VqENtvU
+Bugs and questions — Discord server **KOZYR SMP**: https://discord.gg/NQjHG9EF4v
+or message KOZYR directly on Discord (kozyr.r): https://discord.com/users/741923152019324949
 
-*Баги и вопросы — в Discord «by KOZYR», раздел 🔐 HIDE PASSWORD (каналы «баги» и «помощь»).
+*Баги и вопросы — в Discord сервера KOZYR SMP или мне в личку (kozyr.r).
 Укажите версию Minecraft, версию мода и приложите `latest.log`.*
 
 ## Building

@@ -3,13 +3,15 @@
 ## 1.3.1
 - The eye button now shows the current state: open eye while the password is visible,
   crossed-out eye while it is hidden (it used to show the next action).
+- Help links (Mod Menu, README) now lead to the KOZYR SMP Discord https://discord.gg/NQjHG9EF4v
+  and KOZYR's personal Discord https://discord.com/users/741923152019324949; the old «by KOZYR» server is gone.
 
 ## 1.3.0
 - Renamed to **Hide Password (by KOZYR)** (mod id `hidepassword`; replaces the old `passwordmask` jar — remove it).
 - Now available for Minecraft 1.20–1.20.1, 1.20.2–1.20.4, 1.20.5–1.21.1, 1.21.2–1.21.4, 1.21.5, 1.21.6–1.21.8,
   1.21.9–1.21.10, 1.21.11, 26.1.x, 26.2 and 26.3 (Fabric). Server login dialogs exist since 1.21.6 —
   older versions mask chat commands only.
-- Help and bug reports: Discord https://discord.gg/6g6VqENtvU (section HIDE PASSWORD); Mod Menu shows a Discord link.
+- Help and bug reports: Discord; Mod Menu shows a Discord link.
 
 ## 1.2.1
 - Fixed: the eye button in login dialogs did not react to clicks

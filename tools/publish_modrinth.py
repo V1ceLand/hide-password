@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parent.parent
 API = "https://api.modrinth.com/v2"
 SLUG = "hide-password-by-kozyr"
 TITLE = "Hide Password (by KOZYR)"
-DISCORD = "https://discord.gg/6g6VqENtvU"
+DISCORD = "https://discord.gg/NQjHG9EF4v"
+DISCORD_ME = "https://discord.com/users/741923152019324949"
 GITHUB = "https://github.com/V1ceLand/hide-password"
 USER_AGENT = "V1ceLand/hide-password publisher (kozyr)"
 
@@ -54,7 +55,7 @@ Recognised commands: `login`, `l`, `log`, `register`, `reg`, `changepassword`, `
 - Client only — works on any server, nothing is needed server-side.
 
 ## Help / Помощь
-Bugs and questions — Discord **by KOZYR**, section 🔐 HIDE PASSWORD: {DISCORD}
+Bugs and questions — Discord server **KOZYR SMP**: {DISCORD} or KOZYR directly: {DISCORD_ME}
 
 Source code: {GITHUB}
 """
