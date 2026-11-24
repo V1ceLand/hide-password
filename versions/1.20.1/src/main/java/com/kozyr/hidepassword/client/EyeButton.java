@@ -16,8 +16,8 @@ import java.util.function.Consumer;
 public final class EyeButton extends Button {
 	public static final int SIZE = 20;
 	private static final int ICON_SIZE = 16;
-	private static final ResourceLocation ICON_SHOW = icon("eye");
-	private static final ResourceLocation ICON_HIDE = icon("eye_slash");
+	private static final ResourceLocation ICON_SHOWN = icon("eye");
+	private static final ResourceLocation ICON_HIDDEN = icon("eye_slash");
 
 	private final Consumer<EyeButton> placement;
 
@@ -64,7 +64,7 @@ public final class EyeButton extends Button {
 		graphics.blitNineSliced(WIDGETS_LOCATION, this.getX(), this.getY(), this.getWidth(), this.getHeight(), 20, 4, 200, 20, 0, this.getTextureY());
 		graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-		ResourceLocation icon = PasswordMaskState.isShown() ? ICON_HIDE : ICON_SHOW;
+		ResourceLocation icon = PasswordMaskState.isShown() ? ICON_SHOWN : ICON_HIDDEN;
 		graphics.blit(icon,
 				this.getX() + (this.getWidth() - ICON_SIZE) / 2,
 				this.getY() + (this.getHeight() - ICON_SIZE) / 2,

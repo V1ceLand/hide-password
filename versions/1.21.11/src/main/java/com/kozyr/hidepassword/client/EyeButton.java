@@ -19,8 +19,8 @@ public final class EyeButton extends Button {
 	public static final int SIZE = 20;
 	private static final int ICON_SIZE = 16;
 	private static final int GAP = 4;
-	private static final Identifier ICON_SHOW = icon("eye");
-	private static final Identifier ICON_HIDE = icon("eye_slash");
+	private static final Identifier ICON_SHOWN = icon("eye");
+	private static final Identifier ICON_HIDDEN = icon("eye_slash");
 
 	private final Consumer<EyeButton> placement;
 
@@ -60,7 +60,7 @@ public final class EyeButton extends Button {
 		this.renderDefaultSprite(graphics);
 		graphics.blitSprite(
 				RenderPipelines.GUI_TEXTURED,
-				PasswordMaskState.isShown() ? ICON_HIDE : ICON_SHOW,
+				PasswordMaskState.isShown() ? ICON_SHOWN : ICON_HIDDEN,
 				this.getX() + (this.getWidth() - ICON_SIZE) / 2,
 				this.getY() + (this.getHeight() - ICON_SIZE) / 2,
 				ICON_SIZE,

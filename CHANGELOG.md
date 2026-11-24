@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+- The eye button now shows the current state: open eye while the password is visible,
+  crossed-out eye while it is hidden (it used to show the next action).
+
 ## 1.3.0
 - Renamed to **Hide Password (by KOZYR)** (mod id `hidepassword`; replaces the old `passwordmask` jar — remove it).
 - Now available for Minecraft 1.20–1.20.1, 1.20.2–1.20.4, 1.20.5–1.21.1, 1.21.2–1.21.4, 1.21.5, 1.21.6–1.21.8,

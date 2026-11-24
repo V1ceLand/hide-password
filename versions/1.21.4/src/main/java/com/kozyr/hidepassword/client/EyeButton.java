@@ -22,8 +22,8 @@ public final class EyeButton extends Button {
 			ResourceLocation.withDefaultNamespace("widget/button"),
 			ResourceLocation.withDefaultNamespace("widget/button_disabled"),
 			ResourceLocation.withDefaultNamespace("widget/button_highlighted"));
-	private static final ResourceLocation ICON_SHOW = icon("eye");
-	private static final ResourceLocation ICON_HIDE = icon("eye_slash");
+	private static final ResourceLocation ICON_SHOWN = icon("eye");
+	private static final ResourceLocation ICON_HIDDEN = icon("eye_slash");
 
 	private final Consumer<EyeButton> placement;
 
@@ -63,7 +63,7 @@ public final class EyeButton extends Button {
 				this.getHeight(),
 				ARGB.white(this.alpha));
 
-		ResourceLocation icon = PasswordMaskState.isShown() ? ICON_HIDE : ICON_SHOW;
+		ResourceLocation icon = PasswordMaskState.isShown() ? ICON_SHOWN : ICON_HIDDEN;
 		graphics.blitSprite(
 				RenderType::guiTextured,
 				icon,

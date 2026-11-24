@@ -13,7 +13,8 @@ in chat (`/login`, `/register`, `/changepassword`, …) and in server login dial
 
 - `/login 12345` is shown as `/login *****` — the real text is sent to the server unchanged.
 - Password fields in server dialogs are masked too.
-- Square eye button toggles visibility:
+- Square eye button toggles visibility. The icon shows the current state: open eye while the password
+  is visible, crossed-out eye while it is hidden:
   - in a login dialog — right next to the password field;
   - in chat — bottom-right corner above the input line, only while a password command is typed
     (moves aside if another mod already has a button there).
